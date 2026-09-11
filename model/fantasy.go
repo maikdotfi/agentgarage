@@ -174,17 +174,25 @@ func (m *FantasyModel) Generate(ctx context.Context, req ModelRequest) (fantasy.
 	}
 	if m.thinkingOpts != nil {
 		call.ProviderOptions = m.thinkingOpts
-		if m.minOutputTokens > 0 {
-			maxOutput := m.minOutputTokens
-			call.MaxOutputTokens = &maxOutput
-		}
 	}
+	call.MaxOutputTokens = outputBudget(req.MaxOutputTokens, m.minOutputTokens)
 
 	resp, err := lm.Generate(ctx, call)
 	if err != nil {
 		return fantasy.Message{}, fantasy.Usage{}, err
 	}
 	return assistantMessage(resp), resp.Usage, nil
+}
+
+// outputBudget is the ceiling one call puts on its answer, reasoning included.
+// What the request asks for and what thinking needs are both floors rather than
+// alternatives, so the larger wins; nil leaves the provider's default.
+func outputBudget(requested, thinking int64) *int64 {
+	budget := max(requested, thinking)
+	if budget <= 0 {
+		return nil
+	}
+	return &budget
 }
 
 func toFantasyTools(defs []ToolDefinition) []fantasy.Tool {

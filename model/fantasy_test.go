@@ -54,3 +54,36 @@ func TestHeadersWithAuthorization(t *testing.T) {
 		}
 	})
 }
+
+// A model that reasons before it answers spends the same budget on both, so a
+// request asking for something long and a thinking configuration that needs
+// room are floors rather than alternatives.
+func TestOutputBudgetTakesTheLargerFloor(t *testing.T) {
+	for _, tc := range []struct {
+		name                string
+		requested, thinking int64
+		want                int64 // 0 means "leave the provider's default"
+	}{
+		{name: "neither", want: 0},
+		{name: "only the request asks", requested: 32000, want: 32000},
+		{name: "only thinking needs it", thinking: 16000, want: 16000},
+		{name: "the request asks for more", requested: 32000, thinking: 16000, want: 32000},
+		{name: "thinking needs more", requested: 2000, thinking: 16000, want: 16000},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := outputBudget(tc.requested, tc.thinking)
+			if tc.want == 0 {
+				if got != nil {
+					t.Fatalf("budget = %d, want the provider default", *got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatal("budget = provider default, want a ceiling")
+			}
+			if *got != tc.want {
+				t.Errorf("budget = %d, want %d", *got, tc.want)
+			}
+		})
+	}
+}
