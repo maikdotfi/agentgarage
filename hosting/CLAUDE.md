@@ -12,10 +12,10 @@ GitHub); nothing reaches in except through a tunnel it agreed to open.
   - `garage door`: the WireGuard tunnel, SSH access, and the single bucket
     mail poller. Changes rarely, so an app crash or a bad release never locks
     us out.
-- Agent sandboxes are Docker containers via `metaharness/sandbox/docker`.
-  Docker is for sandboxes, not for running the garage. No docker-compose.
-  We may build our own sandboxing later; the sandbox interface is where it
-  plugs in.
+- No Docker on the host. Agents run in the workspace's own sandbox, a
+  worktree and a minimal environment, as the unprivileged `garage` user; that
+  user is the only boundary. Sandboxing gets re-thought once agents run here
+  (`.plans/ROADMAP.md`), and plugs in behind `agent.Sandbox`.
 - `garage backup`, run daily by a systemd timer, takes a consistent snapshot
   of every SQLite database (agents' and the garage's; never a raw copy of a
   live file) and uploads it under that owner's prefix. `garage restore` is
@@ -43,7 +43,7 @@ risky parts:
 
 1. The agent names a commit sha on `main`. Merging to `main` is the gate, and
    that stays a human's call until we choose otherwise.
-2. The garage builds that sha itself in a fresh sandbox (`go test ./...`, then
+2. The garage builds that sha itself in a fresh worktree (`go test ./...`, then
    `go build`). It never trusts a binary an agent hands it.
 3. It signs the result with the host's release key, uploads it to
    `releases/<sha>/`, CAS-updates `releases/current`, and restarts

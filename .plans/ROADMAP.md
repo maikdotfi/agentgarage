@@ -29,11 +29,14 @@ door goes last, and nothing depends on it.
 - No door before agents can deploy the garage. Until then, SSH stays open for
   key-based login from one IP, as a deliberate stopgap.
 - No second agent before the first one has shipped a PR.
+- No Docker sandboxes. On the VPS, agents run in the workspace's own
+  sandbox: a worktree and a minimal environment, isolating nothing. We
+  re-think sandboxing once agents are running there.
 
 ## Phase 1: laptop, one agent, one PR
 
-1. **Skeleton.** A root `go.mod` (`github.com/maikdotfi/agentgarage`), a
-   `go.work` that includes `metaharness`, and `cmd/garage` with empty
+1. **Skeleton.** A single root `go.mod` (`github.com/maikdotfi/agentgarage`)
+   covering `metaharness` too, and `cmd/garage` with empty
    subcommands (`serve`, `door`, `remote`, `backup`, `restore`, `chat`).
 2. **`bucket`.** The budgeted S3 client, operation counts by billing class,
    named rate limits, ed25519 signing, and an in-memory fake that honours
@@ -55,6 +58,8 @@ PR appears.
    `garage door`; `garage remote chat` as a plain command-line tool.
 7. **Deploy by hand.** `scp` the binary and add systemd units, plus the
    idempotent host setup script. Key-only SSH from one IP until the door lands.
+   No Docker on the host. The garage runs as an unprivileged `garage` user,
+   and that user is the only boundary: an agent can do whatever it can.
 8. **`garage backup` / `garage restore`**, on a systemd timer. Test a restore.
 
 **Milestone B:** the garage runs on the VPS, humans talk to it through R2,
@@ -62,17 +67,21 @@ and agents open PRs here. The garage now works on itself.
 
 ## Phase 3: agents help build the rest
 
-9. **Releases and inception.** Releases through the bucket, the agent `deploy`
-   tool (the garage builds the sha itself), versioned binaries with
-   `serve-current` / `door-current`, and the door as watchdog with automatic
-   rollback.
-10. **Club grug.** Reviews every PR with `grug-review`: the first check on
+9. **Re-think sandboxing.** Decide from what running agents actually do on
+   the host: something of our own, or nothing more than the `garage` user.
+   Whatever we choose plugs in behind `agent.Sandbox`. If it's a library
+   sandbox, `agent.Command` needs an env first (see `workspace/CLAUDE.md`).
+10. **Releases and inception.** Releases through the bucket, the agent `deploy`
+    tool (the garage builds the sha itself), versioned binaries with
+    `serve-current` / `door-current`, and the door as watchdog with automatic
+    rollback.
+11. **Club grug.** Reviews every PR with `grug-review`: the first check on
     agent-written code.
-11. **Testing grug, then monitoring grug.** Monitoring watches the bucket
+12. **Testing grug, then monitoring grug.** Monitoring watches the bucket
     budget, backups, and releases, and posts to `#garage`.
-12. **The remote UI.** Mail-backed first, live over the tunnel later. A good
+13. **The remote UI.** Mail-backed first, live over the tunnel later. A good
     task for the dev agent.
-13. **The door.** WireGuard bootstrapped through mail. A human writes this
+14. **The door.** WireGuard bootstrapped through mail. A human writes this
     one; it's the piece that can lock us out. Then SSH closes.
 
 ## First tasks for agents

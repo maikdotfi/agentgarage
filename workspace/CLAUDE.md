@@ -31,7 +31,7 @@ noun; there is no other name for it anywhere in the code.
   `GIT_CONFIG_*` env vars, never a command line or a file.
 - Friction for metaharness: `agent.Command` has no env, so the library's
   sandboxes can't inject credentials at exec time. This package works around it
-  with its own sandbox; Docker sandboxes on the VPS will need the library change.
+  with its own sandbox; any library sandbox we adopt later needs the change.
 
 ## Secrets
 
