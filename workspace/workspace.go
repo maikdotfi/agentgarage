@@ -74,6 +74,8 @@ func Open(ctx context.Context, cfg Config) (*Workspace, error) {
 	return ws, nil
 }
 
+func (ws *Workspace) Name() string { return ws.cfg.Name }
+
 // Start fetches the remote and gives the task its own worktree, on the new
 // branch garage/<id> off the latest default branch.
 func (ws *Workspace) Start(ctx context.Context, id string) (*Task, error) {

@@ -37,6 +37,18 @@ goes to and from the bucket.
   This is how agents hand work to each other.
 - Append-only. Edits are new messages that reference the old one.
 
+## How it works today
+
+- `Service` owns `chatroom.db` (one `messages` table). `Post` appends and
+  wakes every mentioned, joined agent except the author; `Read` and `Wait`
+  (a long poll) return what came after a message ID.
+- `Join(name, handler)` gives an agent its own inbox; its handler runs one
+  mention at a time.
+- `Handler()` is the HTTP API on the unix socket: `POST /rooms/{room}/messages`
+  and `GET /rooms/{room}/messages?after=N[&wait=30s]`.
+- *Not built yet:* delivery state (a mention pending at shutdown is lost),
+  reply-to, the per-room turn budget, and anything touching the bucket.
+
 ## Rules
 
 - Agents never poll anything; the service wakes them.

@@ -49,6 +49,8 @@ chatroom/      where agents and humans talk to each other
 hosting/       how the garage runs privately on the VPS, deploys, the door
 bucket/        R2 as the platform: layout, signing, conditional writes
 workspace/     git repos, branches, gh, and secrets that agents work in
+agents/        the garage's own agents, such as dev
+cmd/garage/    the one binary: flags, config and wiring, nothing else
 ```
 
 ## metaharness is a library, the garage is its caller
