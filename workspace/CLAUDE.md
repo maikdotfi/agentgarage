@@ -16,6 +16,23 @@ noun; there is no other name for it anywhere in the code.
 - This repository is a workspace like any other. The garage improving itself
   is just agents working in the `agentgarage` workspace.
 
+## How it works today
+
+- `Open` clones `Remote` to `<Root>/<name>/repo` once, and fetches after that.
+  `Start(id)` fetches again and adds `<Root>/<name>/tasks/<id>` on branch
+  `garage/<id>` off the remote's default branch.
+- `Task.Sandbox()` is the workspace's own `agent.Sandbox`: commands run in the
+  worktree with a minimal environment (PATH, HOME, the commit identity, the
+  credentials) and **none** of the garage's own, so the bucket token never
+  reaches an agent. Credential values are redacted from all output.
+- `Task.OpenPR` refuses uncommitted or empty work, pushes the branch (never
+  forced) and runs `gh pr create`. Tests point `Config.GH` at a fake script.
+- git over HTTPS gets `GH_TOKEN` through a credential helper set by
+  `GIT_CONFIG_*` env vars, never a command line or a file.
+- Friction for metaharness: `agent.Command` has no env, so the library's
+  sandboxes can't inject credentials at exec time. This package works around it
+  with its own sandbox; Docker sandboxes on the VPS will need the library change.
+
 ## Secrets
 
 Prototype stakes, so keep it simple and don't leak:
