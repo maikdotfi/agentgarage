@@ -3,8 +3,8 @@ package testutils_test
 import (
 	"testing"
 
-	"github.com/maikdotfi/metaharness/agentdb"
-	"github.com/maikdotfi/metaharness/testutils"
+	"github.com/maikdotfi/agentgarage/metaharness/agentdb"
+	"github.com/maikdotfi/agentgarage/metaharness/testutils"
 )
 
 func TestMemKV(t *testing.T) {

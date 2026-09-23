@@ -6,8 +6,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/maikdotfi/metaharness/agent"
-	"github.com/maikdotfi/metaharness/skills"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/skills"
 )
 
 // SkillArgs is the tool's input: which skill to load, plus free-form arguments

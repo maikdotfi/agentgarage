@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/maikdotfi/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
 )
 
 // MemStore is a SessionStore that keeps sessions in memory and nothing else. It

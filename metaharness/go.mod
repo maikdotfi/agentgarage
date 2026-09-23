@@ -1,4 +1,4 @@
-module github.com/maikdotfi/metaharness
+module github.com/maikdotfi/agentgarage/metaharness
 
 go 1.26.5
 

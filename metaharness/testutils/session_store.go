@@ -10,7 +10,7 @@ import (
 
 	"charm.land/fantasy"
 
-	"github.com/maikdotfi/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
 )
 
 // SessionStoreFactory creates an isolated store for one test.

@@ -11,7 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/maikdotfi/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
 )
 
 // Dir is a sandbox that is one directory on this machine, for an application

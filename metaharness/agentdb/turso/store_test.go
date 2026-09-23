@@ -13,9 +13,9 @@ import (
 
 	"charm.land/fantasy"
 
-	"github.com/maikdotfi/metaharness/agent"
-	"github.com/maikdotfi/metaharness/agentdb/turso"
-	"github.com/maikdotfi/metaharness/testutils"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/agentdb/turso"
+	"github.com/maikdotfi/agentgarage/metaharness/testutils"
 )
 
 func TestStore(t *testing.T) {

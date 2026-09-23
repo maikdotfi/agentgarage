@@ -13,7 +13,7 @@ import (
 	"charm.land/fantasy"
 	tursodrv "turso.tech/database/tursogo"
 
-	"github.com/maikdotfi/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
 )
 
 const timestampFormat = "2006-01-02T15:04:05.000000000Z"

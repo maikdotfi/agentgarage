@@ -6,8 +6,8 @@ import (
 
 	"charm.land/fantasy"
 
-	"github.com/maikdotfi/metaharness/agent"
-	"github.com/maikdotfi/metaharness/model"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/model"
 )
 
 // telegramMaxMessage is Telegram's per-message text limit. Longer replies are

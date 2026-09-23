@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/maikdotfi/metaharness/memory"
+	"github.com/maikdotfi/agentgarage/metaharness/memory"
 )
 
 // NoteStoreFactory creates an isolated note store for one test.

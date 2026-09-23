@@ -1,6 +1,6 @@
 package agent
 
-import "github.com/maikdotfi/metaharness/model"
+import "github.com/maikdotfi/agentgarage/metaharness/model"
 
 // Agent is the reusable half of a turn: the model, the tools, the prompt and the
 // store. It holds nothing per-task and nothing per-sandbox, so one agent serves

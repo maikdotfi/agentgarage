@@ -10,7 +10,7 @@ import (
 
 	"github.com/docker/docker/pkg/stdcopy"
 
-	"github.com/maikdotfi/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
 )
 
 // running gives a backend one running sandbox, which is what Exec requires.

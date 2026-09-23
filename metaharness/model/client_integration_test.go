@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/maikdotfi/metaharness/model"
+	"github.com/maikdotfi/agentgarage/metaharness/model"
 )
 
 const defaultTestModel = "gemma4:31b-cloud"

@@ -3,7 +3,7 @@ package testutils
 import (
 	"testing"
 
-	"github.com/maikdotfi/metaharness/memory"
+	"github.com/maikdotfi/agentgarage/metaharness/memory"
 )
 
 // TestMemNotes runs the shared suite against the note store with no storage at

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/maikdotfi/metaharness/model"
+	"github.com/maikdotfi/agentgarage/metaharness/model"
 )
 
 type ToolResult struct {

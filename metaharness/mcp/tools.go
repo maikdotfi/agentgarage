@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/maikdotfi/metaharness/agent"
-	"github.com/maikdotfi/metaharness/model"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/model"
 )
 
 // maxNameLen is the longest tool name providers accept. MCP itself has no

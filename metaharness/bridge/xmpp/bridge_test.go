@@ -14,10 +14,10 @@ import (
 	"mellium.im/xmpp/jid"
 	"mellium.im/xmpp/stanza"
 
-	"github.com/maikdotfi/metaharness/agent"
-	"github.com/maikdotfi/metaharness/model"
-	"github.com/maikdotfi/metaharness/testutils"
-	"github.com/maikdotfi/metaharness/tools"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/model"
+	"github.com/maikdotfi/agentgarage/metaharness/testutils"
+	"github.com/maikdotfi/agentgarage/metaharness/tools"
 )
 
 type sentMessage struct {

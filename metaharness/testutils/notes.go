@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/maikdotfi/metaharness/memory"
+	"github.com/maikdotfi/agentgarage/metaharness/memory"
 )
 
 // MemNotes is a memory.Store that keeps notes in memory and nothing else.

@@ -25,7 +25,7 @@ import (
 	"github.com/docker/docker/client"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 
-	"github.com/maikdotfi/metaharness/sandbox"
+	"github.com/maikdotfi/agentgarage/metaharness/sandbox"
 )
 
 const (
@@ -105,7 +105,7 @@ func WithKeepalive(cmd []string) Option {
 // Kind is the name this backend answers to in sandbox.New. Importing this
 // package for its side effect is what makes that name available:
 //
-//	import _ "github.com/maikdotfi/metaharness/sandbox/docker"
+//	import _ "github.com/maikdotfi/agentgarage/metaharness/sandbox/docker"
 //
 // which is also the only place an application that chooses its backend by name
 // mentions Docker at all — and the only thing to delete to be rid of the SDK.

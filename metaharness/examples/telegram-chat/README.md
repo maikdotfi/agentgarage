@@ -99,7 +99,7 @@ shows up in the log rather than only in `/status`.
 imports for their side effect:
 
 ```go
-_ "github.com/maikdotfi/metaharness/sandbox/docker"
+_ "github.com/maikdotfi/agentgarage/metaharness/sandbox/docker"
 ```
 
 That line is this program's entire relationship with Docker. Delete it and

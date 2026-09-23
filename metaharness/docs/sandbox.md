@@ -90,7 +90,7 @@ An application does not construct a backend by naming its type. It names a kind,
 and the kinds it has are the backend packages it imports:
 
 ```go
-import _ "github.com/maikdotfi/metaharness/sandbox/docker"  // this is the switch
+import _ "github.com/maikdotfi/agentgarage/metaharness/sandbox/docker"  // this is the switch
 
 sandboxManager, err := sandbox.New(opt.sandboxKind,
 	sandbox.WithRoot(opt.workdir),

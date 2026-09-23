@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/maikdotfi/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
 )
 
 func TestDiscardStore(t *testing.T) {

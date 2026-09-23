@@ -38,19 +38,19 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/maikdotfi/metaharness/agent"
-	"github.com/maikdotfi/metaharness/agentdb/turso"
-	"github.com/maikdotfi/metaharness/bridge/telegram"
-	"github.com/maikdotfi/metaharness/mcp"
-	"github.com/maikdotfi/metaharness/mcp/lightpanda"
-	"github.com/maikdotfi/metaharness/memory"
-	"github.com/maikdotfi/metaharness/model"
-	"github.com/maikdotfi/metaharness/sandbox"
-	"github.com/maikdotfi/metaharness/tools"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/agentdb/turso"
+	"github.com/maikdotfi/agentgarage/metaharness/bridge/telegram"
+	"github.com/maikdotfi/agentgarage/metaharness/mcp"
+	"github.com/maikdotfi/agentgarage/metaharness/mcp/lightpanda"
+	"github.com/maikdotfi/agentgarage/metaharness/memory"
+	"github.com/maikdotfi/agentgarage/metaharness/model"
+	"github.com/maikdotfi/agentgarage/metaharness/sandbox"
+	"github.com/maikdotfi/agentgarage/metaharness/tools"
 
 	// Importing a backend registers its -sandbox kind. This line is all this
 	// program says about Docker: delete it and only the local backend remains.
-	_ "github.com/maikdotfi/metaharness/sandbox/docker"
+	_ "github.com/maikdotfi/agentgarage/metaharness/sandbox/docker"
 )
 
 const systemPrompt = `You are a helpful personal assistant reachable over Telegram.

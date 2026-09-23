@@ -58,7 +58,7 @@ A backend registers its own kind from `init` (`sandbox/registry.go:50`,
 switch, and the application says one thing about Docker:
 
 ```go
-_ "github.com/maikdotfi/metaharness/sandbox/docker"
+_ "github.com/maikdotfi/agentgarage/metaharness/sandbox/docker"
 ```
 
 Two properties fall out that are worth wanting on purpose. The set of choices

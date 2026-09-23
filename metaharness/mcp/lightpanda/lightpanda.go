@@ -14,8 +14,8 @@ package lightpanda
 import (
 	"context"
 
-	"github.com/maikdotfi/metaharness/agent"
-	"github.com/maikdotfi/metaharness/mcp"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/mcp"
 )
 
 // Tools returns the browser tools, ready for agent.WithTools.

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/maikdotfi/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
 )
 
 const testIdle = time.Minute

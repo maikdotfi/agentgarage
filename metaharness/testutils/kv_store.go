@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/maikdotfi/metaharness/agentdb"
+	"github.com/maikdotfi/agentgarage/metaharness/agentdb"
 )
 
 // KVFactory creates an isolated key-value store for one test.

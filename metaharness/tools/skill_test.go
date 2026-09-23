@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/maikdotfi/metaharness/skills"
-	"github.com/maikdotfi/metaharness/testutils"
+	"github.com/maikdotfi/agentgarage/metaharness/skills"
+	"github.com/maikdotfi/agentgarage/metaharness/testutils"
 )
 
 // TestSkill invokes a known skill through the full dispatch path and checks the

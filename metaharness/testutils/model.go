@@ -7,7 +7,7 @@ import (
 
 	"charm.land/fantasy"
 
-	"github.com/maikdotfi/metaharness/model"
+	"github.com/maikdotfi/agentgarage/metaharness/model"
 )
 
 // ScriptedModel is a fake ModelClient that returns a pre-baked assistant

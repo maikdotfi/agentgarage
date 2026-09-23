@@ -8,8 +8,8 @@ import (
 
 	"charm.land/fantasy"
 
-	"github.com/maikdotfi/metaharness/agent"
-	"github.com/maikdotfi/metaharness/testutils"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/testutils"
 )
 
 // execAgent wires an agent whose single tool runs one command in whatever

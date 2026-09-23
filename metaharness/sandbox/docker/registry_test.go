@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/maikdotfi/metaharness/sandbox"
+	"github.com/maikdotfi/agentgarage/metaharness/sandbox"
 )
 
 // TestImportingThisPackageRegistersTheKind is the whole contract of the blank

@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/maikdotfi/metaharness/agentdb/turso"
-	"github.com/maikdotfi/metaharness/memory"
-	"github.com/maikdotfi/metaharness/testutils"
+	"github.com/maikdotfi/agentgarage/metaharness/agentdb/turso"
+	"github.com/maikdotfi/agentgarage/metaharness/memory"
+	"github.com/maikdotfi/agentgarage/metaharness/testutils"
 )
 
 func TestNoteStore(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/maikdotfi/metaharness/mcp"
+	"github.com/maikdotfi/agentgarage/metaharness/mcp"
 )
 
 var errNoLuck = errors.New("no luck today")

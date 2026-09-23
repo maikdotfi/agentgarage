@@ -20,9 +20,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/maikdotfi/metaharness/agent"
-	"github.com/maikdotfi/metaharness/mcp"
-	"github.com/maikdotfi/metaharness/mcp/lightpanda"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/mcp"
+	"github.com/maikdotfi/agentgarage/metaharness/mcp/lightpanda"
 )
 
 const pageHTML = `<!doctype html>

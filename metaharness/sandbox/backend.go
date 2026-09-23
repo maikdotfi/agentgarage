@@ -3,7 +3,7 @@ package sandbox
 import (
 	"context"
 
-	"github.com/maikdotfi/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
 )
 
 // Spec is what a backend needs to make a sandbox that does not exist yet. The

@@ -16,12 +16,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/maikdotfi/metaharness/agent"
-	"github.com/maikdotfi/metaharness/agentdb/turso"
-	"github.com/maikdotfi/metaharness/model"
-	"github.com/maikdotfi/metaharness/sandbox"
-	"github.com/maikdotfi/metaharness/skills"
-	"github.com/maikdotfi/metaharness/tools"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/agentdb/turso"
+	"github.com/maikdotfi/agentgarage/metaharness/model"
+	"github.com/maikdotfi/agentgarage/metaharness/sandbox"
+	"github.com/maikdotfi/agentgarage/metaharness/skills"
+	"github.com/maikdotfi/agentgarage/metaharness/tools"
 )
 
 const systemPrompt = `You are a code review agent. Review the Go code in the current working directory.

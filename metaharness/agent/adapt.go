@@ -8,7 +8,7 @@ import (
 
 	"charm.land/fantasy/schema"
 
-	"github.com/maikdotfi/metaharness/model"
+	"github.com/maikdotfi/agentgarage/metaharness/model"
 )
 
 // Adapt erases a TypedTool[T] into the Tool the dispatcher stores. It derives

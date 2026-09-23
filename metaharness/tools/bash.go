@@ -3,7 +3,7 @@ package tools
 import (
 	"context"
 
-	"github.com/maikdotfi/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
 )
 
 type Bash struct{}

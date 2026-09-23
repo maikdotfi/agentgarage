@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/maikdotfi/metaharness/memory"
+	"github.com/maikdotfi/agentgarage/metaharness/memory"
 )
 
 // Notes returns every note the agent holds, ordered by topic.

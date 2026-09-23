@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/maikdotfi/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
 )
 
 // fakeBackend models sandboxes that exist, run and stop rather than replaying

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/maikdotfi/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
 )
 
 // Store is where notes live. One entry per topic, newest write wins. The order

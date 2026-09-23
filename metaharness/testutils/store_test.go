@@ -3,7 +3,7 @@ package testutils
 import (
 	"testing"
 
-	"github.com/maikdotfi/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
 )
 
 // TestMemStore runs the shared suite against the store with no storage at all.

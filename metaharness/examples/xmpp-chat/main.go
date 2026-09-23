@@ -28,13 +28,13 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/maikdotfi/metaharness/agent"
-	"github.com/maikdotfi/metaharness/agentdb/turso"
-	"github.com/maikdotfi/metaharness/bridge/xmpp"
-	"github.com/maikdotfi/metaharness/memory"
-	"github.com/maikdotfi/metaharness/model"
-	"github.com/maikdotfi/metaharness/sandbox"
-	"github.com/maikdotfi/metaharness/tools"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/agentdb/turso"
+	"github.com/maikdotfi/agentgarage/metaharness/bridge/xmpp"
+	"github.com/maikdotfi/agentgarage/metaharness/memory"
+	"github.com/maikdotfi/agentgarage/metaharness/model"
+	"github.com/maikdotfi/agentgarage/metaharness/sandbox"
+	"github.com/maikdotfi/agentgarage/metaharness/tools"
 )
 
 const systemPrompt = `You are a helpful personal assistant reachable over XMPP.

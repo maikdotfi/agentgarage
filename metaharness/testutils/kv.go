@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/maikdotfi/metaharness/agentdb"
+	"github.com/maikdotfi/agentgarage/metaharness/agentdb"
 )
 
 // MemKV is an agentdb.KV that keeps an application's state in memory and

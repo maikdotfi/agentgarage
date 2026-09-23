@@ -37,7 +37,7 @@ var (
 // it from an init function, which is what makes importing that package the whole
 // act of making its kind available:
 //
-//	import _ "github.com/maikdotfi/metaharness/sandbox/docker"
+//	import _ "github.com/maikdotfi/agentgarage/metaharness/sandbox/docker"
 //
 // An application then names a kind to New — from a flag, or the environment — and
 // never mentions the implementing package again. Dropping the import drops the

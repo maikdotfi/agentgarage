@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/maikdotfi/metaharness/agentdb"
+	"github.com/maikdotfi/agentgarage/metaharness/agentdb"
 )
 
 // Get returns the value stored under key, and whether there was one.

@@ -6,8 +6,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/maikdotfi/metaharness/agent"
-	"github.com/maikdotfi/metaharness/sandbox"
+	"github.com/maikdotfi/agentgarage/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/sandbox"
 )
 
 const testImage = "alpine:test"
