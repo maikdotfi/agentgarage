@@ -19,7 +19,7 @@ talks to S3, and it enforces a budget so nothing can spam it.
   harder.
 - Monthly totals per class are kept in SQLite. Past a soft limit, callers slow
   down and a message goes to `#garage`; past the hard limit, only backups may
-  run.
+  run. *Not built yet:* today `Client.Counts` is in memory only.
 - Look up current R2 pricing before changing a limit; don't guess.
 
 ## What R2 gives us (and what it doesn't)
@@ -85,6 +85,9 @@ releases/current               pointer: which sha the host should run
 - **Everything written is signed** (ed25519, one key per side). Readers drop
   unsigned or badly signed objects. A leaked bucket token must not equal a
   shell on the host.
+- The signature rides in object metadata (`x-amz-meta-garage-sig`) and covers
+  the key as well as the body, so a signed object can't be replayed under
+  another key. A side always trusts its own key, plus the pinned list.
 - **Agents and sandboxes never hold bucket credentials.** Only the garage
   process does.
 - **No plaintext secrets in the bucket, and nothing but secrets is
