@@ -43,7 +43,7 @@ Complexity is the apex predator. Grug-brained defaults:
 ## Layout
 
 ```
-metaharness/   the agent library (own Go module); has its own stricter rules
+metaharness/   the agent library; has its own stricter rules
 remote/        the only laptop-side code: `garage remote`, UI, mail, door
 chatroom/      where agents and humans talk to each other
 hosting/       how the garage runs privately on the VPS, deploys, the door
@@ -55,7 +55,8 @@ cmd/garage/    the one binary: flags, config and wiring, nothing else
 
 ## metaharness is a library, the garage is its caller
 
-The garage imports `metaharness`; `metaharness` never imports the garage. When
+The garage imports `metaharness`; `metaharness` never imports the garage
+(`metaharness/imports_test.go` enforces it). When
 the garage wants something from the library, that is a public API change and
 follows `metaharness/CLAUDE.md` (write the caller first, invoke the `public-api`
 skill). Garage code is exactly the "somebody else's `main`" that library is

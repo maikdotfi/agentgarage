@@ -1,7 +1,7 @@
 ## Tech Stack
 
 - Language: Go
-- Shape: Go library module assembled by callers
+- Shape: Go library, a package tree in the garage module, assembled by callers
 
 ## Libraries
 
