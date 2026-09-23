@@ -22,6 +22,9 @@ build and one release. The code lives here and is kept apart from host code.
   before writing them to the bucket, and it never holds the master private
   key.
 
+*Built so far:* only `garage remote secret NAME`, which encrypts stdin to
+the recipient in `GARAGE_HOME/recipient` and writes it to the bucket.
+
 With the door closed, the UI still works for chat through mail, just slower.
 With it open, the UI gets live updates from the host over the tunnel.
 

@@ -8,7 +8,7 @@ import (
 
 func TestNoArgsPrintsUsage(t *testing.T) {
 	var out, errOut bytes.Buffer
-	code := run(nil, &out, &errOut)
+	code := run(nil, strings.NewReader(""), &out, &errOut)
 
 	if code != 2 {
 		t.Fatalf("exit code = %d, want 2", code)
@@ -22,7 +22,7 @@ func TestNoArgsPrintsUsage(t *testing.T) {
 
 func TestUnknownCommandFails(t *testing.T) {
 	var out, errOut bytes.Buffer
-	code := run([]string{"frobnicate"}, &out, &errOut)
+	code := run([]string{"frobnicate"}, strings.NewReader(""), &out, &errOut)
 
 	if code != 2 {
 		t.Fatalf("exit code = %d, want 2", code)
@@ -34,7 +34,7 @@ func TestUnknownCommandFails(t *testing.T) {
 
 func TestHelpPrintsUsageToStdout(t *testing.T) {
 	var out, errOut bytes.Buffer
-	code := run([]string{"help"}, &out, &errOut)
+	code := run([]string{"help"}, strings.NewReader(""), &out, &errOut)
 
 	if code != 0 {
 		t.Fatalf("exit code = %d, want 0", code)
@@ -46,12 +46,12 @@ func TestHelpPrintsUsageToStdout(t *testing.T) {
 
 func TestCommandsNotYetBuiltSayYet(t *testing.T) {
 	var out, errOut bytes.Buffer
-	code := run([]string{"serve"}, &out, &errOut)
+	code := run([]string{"door"}, strings.NewReader(""), &out, &errOut)
 
 	if code != 1 {
 		t.Fatalf("exit code = %d, want 1", code)
 	}
-	if !strings.Contains(errOut.String(), "serve: not implemented yet") {
+	if !strings.Contains(errOut.String(), "door: not implemented yet") {
 		t.Errorf("stderr = %q", errOut.String())
 	}
 }

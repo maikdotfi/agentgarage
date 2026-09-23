@@ -17,24 +17,28 @@ commands:
   backup    snapshot every database to the bucket
   restore   bring databases back from the bucket
   chat      talk to the chatroom over the local socket
+  init      make this machine's keys (-master on the host)
 `
 
-// commands maps each subcommand to its entry point, which gets the remaining
-// arguments and returns an exit code.
-var commands = map[string]func(args []string, stdout, stderr io.Writer) int{
-	"serve":   notYet("serve"),
+// command is one subcommand: it gets the remaining arguments and returns an
+// exit code.
+type command func(args []string, stdin io.Reader, stdout, stderr io.Writer) int
+
+var commands = map[string]command{
+	"serve":   serve,
 	"door":    notYet("door"),
-	"remote":  notYet("remote"),
+	"remote":  remote,
 	"backup":  notYet("backup"),
 	"restore": notYet("restore"),
-	"chat":    notYet("chat"),
+	"chat":    chat,
+	"init":    initKeys,
 }
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
 
-func run(args []string, stdout, stderr io.Writer) int {
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprint(stderr, usage)
 		return 2
@@ -50,11 +54,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "garage: unknown command %q\n\n%s", name, usage)
 		return 2
 	}
-	return cmd(rest, stdout, stderr)
+	return cmd(rest, stdin, stdout, stderr)
 }
 
-func notYet(name string) func([]string, io.Writer, io.Writer) int {
-	return func(_ []string, _, stderr io.Writer) int {
+func notYet(name string) command {
+	return func(_ []string, _ io.Reader, _, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "garage %s: not implemented yet\n", name)
 		return 1
 	}
