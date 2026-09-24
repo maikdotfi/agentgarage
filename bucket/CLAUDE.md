@@ -63,10 +63,11 @@ own. So these are set on each machine, never read from the bucket:
 ## Key layout
 
 ```
-agents/<name>/db/<date>.db     daily snapshot of that agent's database
+agents/<name>/db/<day>.db      daily snapshot of that agent's database
+agents/<name>/db/latest        pointer: the day of the newest snapshot
 agents/<name>/files/           what the agent chooses to keep
-garage/db/<date>.db            garage's own databases: chatroom, tasks
-config/                        all garage config, agent definitions, prompts
+garage/<db>/db/<day>.db        garage's own databases (chatroom), same scheme
+config/garage.json             what garage serve runs: model, git identity, workspaces
 secrets/<name>.age             age-encrypted to the master key; nothing else is
 mail/to-host/<seq>             laptop -> host, one chat message
 mail/to-laptop/<seq>           host -> laptop, same
@@ -74,11 +75,20 @@ releases/<sha>/garage          signed linux binaries
 releases/current               pointer: which sha the host should run
 ```
 
+- A restore GETs `latest` and then that day's snapshot: two Class B reads per
+  database, never a LIST.
+
 - **Mail is experimental**, kept as small as possible until agents run on
   their own and we know what they need to say. Then we redesign it.
 - Mail is sequence-numbered and create-only, one message per object. A reader
   GETs the next number until it stops getting 404, with no cursor object and
-  no LIST. Chat text is the only kind of message.
+  no LIST. Chat text is the only kind of message. `bucket/mail` is the wire
+  format; forged or malformed mail is skipped, and a sender that is behind
+  takes the next free number.
+- Each side keeps its own cursors: the host in `chatroom.db` (so they are
+  backed up), the laptop in `~/.garage/mail.json`. Once expired mail is gone,
+  a side that loses its cursors can't find its place again. Accepted while
+  mail is experimental.
 - Mail is transport, not the record. Consumed messages expire through an R2
   lifecycle rule, and snapshots do too after a retention window.
 

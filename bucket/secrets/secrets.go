@@ -68,8 +68,12 @@ func Put(ctx context.Context, c *bucket.Caller, recipient, name, value string) e
 
 // Master is the master key, which can read every secret.
 type Master struct {
-	ids []age.Identity
+	ids       []age.Identity
+	recipient string
 }
+
+// Recipient is what secrets are encrypted to, for pinning on the laptop.
+func (m *Master) Recipient() string { return m.recipient }
 
 // LoadMaster reads a master key file written by GenerateMaster.
 func LoadMaster(path string) (*Master, error) {
@@ -82,7 +86,11 @@ func LoadMaster(path string) (*Master, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	return &Master{ids: ids}, nil
+	x, ok := ids[0].(*age.X25519Identity)
+	if !ok {
+		return nil, fmt.Errorf("%s: not an X25519 identity", path)
+	}
+	return &Master{ids: ids, recipient: x.Recipient().String()}, nil
 }
 
 // Get reads and decrypts the secret name. The value stays in memory only.

@@ -47,16 +47,21 @@ func Open(ctx context.Context, path string) (*Service, error) {
 	}
 	db := sql.OpenDB(conn)
 	db.SetMaxOpenConns(1)
-	_, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS messages (
-		id         INTEGER PRIMARY KEY,
-		room       TEXT NOT NULL,
-		author     TEXT NOT NULL,
-		text       TEXT NOT NULL,
-		created_at TEXT NOT NULL
-	)`)
-	if err != nil {
-		db.Close()
-		return nil, fmt.Errorf("chatroom: %w", err)
+	for _, stmt := range []string{
+		`CREATE TABLE IF NOT EXISTS messages (
+			id         INTEGER PRIMARY KEY,
+			room       TEXT NOT NULL,
+			author     TEXT NOT NULL,
+			text       TEXT NOT NULL,
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS mail_cursors (name TEXT PRIMARY KEY, n INTEGER NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS mail_rooms (room TEXT PRIMARY KEY)`,
+	} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("chatroom: %w", err)
+		}
 	}
 	sctx, cancel := context.WithCancel(context.Background())
 	return &Service{db: db, ctx: sctx, cancel: cancel, members: map[string]chan Message{}, changed: make(chan struct{})}, nil
@@ -126,9 +131,12 @@ func (s *Service) Post(ctx context.Context, room, author, text string) (Message,
 
 // Read is every message in room after the message with ID after, oldest first.
 func (s *Service) Read(ctx context.Context, room string, after int64) ([]Message, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, room, author, text, created_at FROM messages WHERE room = ? AND id > ? ORDER BY id`,
+	return s.query(ctx, `SELECT id, room, author, text, created_at FROM messages WHERE room = ? AND id > ? ORDER BY id`,
 		room, after)
+}
+
+func (s *Service) query(ctx context.Context, query string, args ...any) ([]Message, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("chatroom: %w", err)
 	}
@@ -171,4 +179,18 @@ func Transcript(msgs []Message) string {
 		fmt.Fprintf(&b, "%s: %s\n", m.Author, m.Text)
 	}
 	return b.String()
+}
+
+// Snapshot writes a consistent copy of the whole database to path, which must
+// not exist yet. It doesn't stop anyone posting.
+func (s *Service) Snapshot(ctx context.Context, path string) error {
+	// Turso takes only a literal here and doesn't unescape '' in one.
+	if strings.ContainsRune(path, '\'') {
+		return fmt.Errorf("chatroom: snapshot path %q has a quote", path)
+	}
+	_, err := s.db.ExecContext(ctx, "VACUUM INTO '"+path+"'")
+	if err != nil {
+		return fmt.Errorf("chatroom: %w", err)
+	}
+	return nil
 }

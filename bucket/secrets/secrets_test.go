@@ -97,3 +97,18 @@ func TestNamesThatAreNotPlainAreRefused(t *testing.T) {
 		}
 	}
 }
+
+func TestAMasterKnowsItsRecipient(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "master.key")
+	recipient, err := secrets.GenerateMaster(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := secrets.LoadMaster(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Recipient() != recipient {
+		t.Errorf("recipient = %q, want %q", m.Recipient(), recipient)
+	}
+}

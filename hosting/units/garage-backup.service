@@ -1,0 +1,11 @@
+# Written by garage setup, which overwrites it on every run.
+[Unit]
+Description=Agent Garage: snapshot every database to the bucket
+Requires=garage-serve.service
+After=garage-serve.service
+
+[Service]
+Type=oneshot
+User=garage
+Group=garage
+ExecStart=/opt/garage/serve-current backup

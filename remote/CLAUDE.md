@@ -22,8 +22,15 @@ build and one release. The code lives here and is kept apart from host code.
   before writing them to the bucket, and it never holds the master private
   key.
 
-*Built so far:* only `garage remote secret NAME`, which encrypts stdin to
-the recipient in `GARAGE_HOME/recipient` and writes it to the bucket.
+*Built so far*, all in `cmd/garage/remote.go` (no UI yet):
+
+- `garage remote secret NAME` encrypts stdin to the recipient in
+  `~/.garage/recipient` and writes it to the bucket.
+- `garage remote config` checks a `config/garage.json` exactly as `serve` will
+  read it, and only then writes it.
+- `garage remote chat -room R` prints what's waiting in `mail/to-laptop/`,
+  mails each stdin line to R, and checks again every 10s until stdin ends.
+  Its cursors are `~/.garage/mail.json`.
 
 With the door closed, the UI still works for chat through mail, just slower.
 With it open, the UI gets live updates from the host over the tunnel.

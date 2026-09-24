@@ -1,0 +1,11 @@
+# Written by garage setup, which overwrites it on every run.
+[Unit]
+Description=Agent Garage: daily database snapshots
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

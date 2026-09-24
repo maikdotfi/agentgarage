@@ -208,3 +208,27 @@ func TestHTTPReadCanWaitForNews(t *testing.T) {
 		t.Errorf("waited read = %q", got)
 	}
 }
+
+func TestASnapshotIsAChatroomOfItsOwn(t *testing.T) {
+	ctx := context.Background()
+	s := open(t, filepath.Join(t.TempDir(), "chatroom.db"))
+	post(t, s, "fix", "mike", "keep this")
+
+	path := filepath.Join(t.TempDir(), "copy.db")
+	if err := s.Snapshot(ctx, path); err != nil {
+		t.Fatal(err)
+	}
+
+	msgs, err := open(t, path).Read(ctx, "fix", 0)
+	if err != nil || len(msgs) != 1 || msgs[0].Text != "keep this" {
+		t.Errorf("snapshot has %+v, %v", msgs, err)
+	}
+}
+
+func TestASnapshotPathWithAQuoteIsRefused(t *testing.T) {
+	s := open(t, ":memory:")
+	path := filepath.Join(t.TempDir(), "it's.db")
+	if err := s.Snapshot(context.Background(), path); err == nil {
+		t.Error("a quoted path was accepted")
+	}
+}

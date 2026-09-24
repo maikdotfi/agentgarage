@@ -18,6 +18,7 @@ commands:
   restore   bring databases back from the bucket
   chat      talk to the chatroom over the local socket
   init      make this machine's keys (-master on the host)
+  setup     make this Debian machine a garage host, as root
 `
 
 // command is one subcommand: it gets the remaining arguments and returns an
@@ -28,10 +29,11 @@ var commands = map[string]command{
 	"serve":   serve,
 	"door":    notYet("door"),
 	"remote":  remote,
-	"backup":  notYet("backup"),
-	"restore": notYet("restore"),
+	"backup":  backup,
+	"restore": restore,
 	"chat":    chat,
 	"init":    initKeys,
+	"setup":   setup,
 }
 
 func main() {

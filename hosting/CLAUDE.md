@@ -22,6 +22,32 @@ GitHub); nothing reaches in except through a tunnel it agreed to open.
   the other half; test it.
 - Break-glass access is the VPS provider's web console. Never remove it.
 
+## How it works today
+
+- `Setup` (`garage setup -ssh-from <ip> -trust <laptop key>`, as root on
+  Debian) checks everything it can before touching anything: r2.env is there,
+  someone has an `authorized_keys`, the keys parse. Then it makes the
+  `garage` user, installs git, gh and ca-certificates, makes whichever keys
+  are missing, installs itself as `/opt/garage/releases/<content sha>/garage`,
+  writes the units in `units/`, makes sshd key-only (`sshd -t` first) and
+  loads `nftables.conf` (`nft -c` first). Only a changed unit or binary
+  restarts anything.
+- Every privileged command goes through `Host.Run`, and every path through
+  `Host.Root`, so tests use a pretend machine. `Exec` is the real thing.
+- Host layout: `/etc/garage` (the keys, `trusted.keys`, `r2.env`) and
+  `/var/lib/garage` (databases, workspaces, the socket), both owned by
+  `garage`, 0700. `cmd/garage` finds them by the existence of `/var/lib/garage`.
+- Backups: `garage backup` asks `serve` over the socket (`POST /backup`),
+  because only the process that owns a database can snapshot it
+  (`VACUUM INTO`). `Backup` uploads `<owner>/db/<day>.db` and moves
+  `<owner>/db/latest`. `serve` runs `Restore` on every start, and it fills in
+  only databases that are missing. So a rebuilt host restores itself.
+- Snapshots are signed by the host key, so **a rebuild needs `signing.key` as
+  well as `master.key`**, or it can't verify its own backups and every
+  laptop has to pin a new host key.
+- *Not built yet:* the door unit, releases through the bucket, and Go on the
+  host for agents to run tests with.
+
 ## Deploys: through the bucket, not gitops
 
 Humans release from the laptop; agents release from the host (next section).

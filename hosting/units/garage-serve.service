@@ -1,0 +1,16 @@
+# Written by garage setup, which overwrites it on every run.
+[Unit]
+Description=Agent Garage: agents, the chatroom and the mail relay
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=garage
+Group=garage
+ExecStart=/opt/garage/serve-current serve
+# Until the laptop has written the config and secrets, serve exits; keep trying.
+Restart=always
+RestartSec=30s
+
+[Install]
+WantedBy=multi-user.target

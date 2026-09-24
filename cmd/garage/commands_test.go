@@ -5,6 +5,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,8 +94,33 @@ func TestChatWithoutServeSaysSo(t *testing.T) {
 func TestServeWithoutABucketSaysWhatIsMissing(t *testing.T) {
 	home(t)
 	t.Setenv("GARAGE_R2_ENDPOINT", "")
-	code, _, errOut := garage(t, "", "serve", "-workspace", "demo=https://example.com/demo")
-	if code == 0 || !strings.Contains(errOut, "GARAGE_R2_ENDPOINT") {
+	code, _, errOut := garage(t, "", "serve")
+	if code == 0 || !strings.Contains(errOut, "GARAGE_R2_ENDPOINT") || !strings.Contains(errOut, "r2.env") {
+		t.Errorf("exit %d, stderr %q", code, errOut)
+	}
+}
+
+func TestTheBucketCanComeFromR2Env(t *testing.T) {
+	dir := home(t)
+	for _, v := range []string{"GARAGE_R2_ENDPOINT", "GARAGE_R2_BUCKET", "GARAGE_R2_ACCESS_KEY_ID", "GARAGE_R2_SECRET_ACCESS_KEY"} {
+		t.Setenv(v, "")
+	}
+	garage(t, "", "init", "-master")
+	empty := httptest.NewServer(http.NotFoundHandler()) // a bucket with nothing in it
+	defer empty.Close()
+	os.WriteFile(filepath.Join(dir, "r2.env"), []byte("# the bucket\nGARAGE_R2_ENDPOINT="+empty.URL+
+		"\nGARAGE_R2_BUCKET=garage\nGARAGE_R2_ACCESS_KEY_ID=id\nGARAGE_R2_SECRET_ACCESS_KEY=secret\n"), 0o600)
+
+	code, _, errOut := garage(t, "", "serve")
+	if code == 0 || !strings.Contains(errOut, "garage remote config") {
+		t.Errorf("exit %d, stderr %q; want serve to reach the bucket and find no config", code, errOut)
+	}
+}
+
+func TestSetupNeedsTheOneIPThatMaySSHIn(t *testing.T) {
+	home(t)
+	code, _, errOut := garage(t, "", "setup", "-trust", "abc")
+	if code != 2 || !strings.Contains(errOut, "-ssh-from") {
 		t.Errorf("exit %d, stderr %q", code, errOut)
 	}
 }

@@ -68,7 +68,9 @@ PR appears.
    things copied over are the binary and the secrets it can't make itself.
    - `garage`, built with `GOOS=linux GOARCH=amd64 go build`
    - `/etc/garage/r2.env`, the bucket credentials
-   - `/etc/garage/master.key`, only when rebuilding a host
+   - `/etc/garage/master.key` and `/etc/garage/signing.key`, only when
+     rebuilding a host. Snapshots are signed by the host key, and the laptop
+     pins it, so a rebuilt host keeps its old one.
 
    Then, as root, `garage setup -ssh-from <ip> -trust <laptop key>`. Each step
    checks the host first and does nothing if it's already right, so running
@@ -93,6 +95,12 @@ PR appears.
    setup` installs. On a host with no databases, setup restores the latest
    snapshots, so rebuilding a dead host means the same copies and the same
    command. Test a restore by doing exactly that.
+
+*Built:* all three, tested against the in-memory bucket, and `garage setup`
+twice in a Debian trixie container (real apt, useradd, nft, sshd; systemctl
+stubbed). Not yet done on a real VPS, and neither is the restore drill.
+`serve` also restores missing databases on every start, so setup needs no
+bucket code of its own.
 
 **Milestone B:** the garage runs on the VPS, humans chat with it through the
 bucket (or over SSH), and agents open PRs here. The garage now works on itself.
@@ -124,8 +132,11 @@ garage fails before it matters. For example: "add bucket operation counters to
 
 ## Open Questions
 
-- Does `tursogo` support `VACUUM INTO` or an online backup API? If not,
-  backups briefly pause writes to that one database.
+- ~~Does `tursogo` support `VACUUM INTO`?~~ Yes (0.7.2), with a literal path
+  only, and it doesn't unescape `''` in one. The snapshot opens in stock
+  `sqlite3`.
+- The dev agent needs Go on the host to run this repo's tests. Debian's is
+  too old for `go 1.26`, so setup will have to install the official tarball.
 - Does the `metaharness/bridge/xmpp` mirror earn its place, or does the remote
   cover phones well enough?
 - When, if ever, can an agent deploy without a human merging to `main` first?

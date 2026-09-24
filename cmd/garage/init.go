@@ -20,7 +20,7 @@ func initKeys(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	home := garageHome()
+	home := keysDir()
 	if err := os.MkdirAll(home, 0o700); err != nil {
 		fmt.Fprintln(stderr, "garage init:", err)
 		return 1

@@ -47,8 +47,15 @@ run on their own and we know what they need to say.
   mention at a time.
 - `Handler()` is the HTTP API on the unix socket: `POST /rooms/{room}/messages`
   and `GET /rooms/{room}/messages?after=N[&wait=30s]`.
+- `RelayMail` is one pass of the mail bridge, run every 10s by `garage
+  serve`: it posts what arrived in `mail/to-host/` (which wakes agents as usual),
+  then mails agents' messages in rooms that mail came from to
+  `mail/to-laptop/`. Humans' messages are never mailed back. Its cursors and
+  those rooms are tables in `chatroom.db`.
+- `Snapshot(path)` is `VACUUM INTO`, for `garage backup`. Turso takes only a
+  literal path there and won't unescape `''`, so a path with a quote is refused.
 - *Not built yet:* delivery state (a mention pending at shutdown is lost),
-  reply-to, the per-room turn budget, and anything touching the bucket.
+  reply-to, and the per-room turn budget.
 
 ## Rules
 
