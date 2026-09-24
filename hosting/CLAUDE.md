@@ -9,9 +9,9 @@ GitHub); nothing reaches in except through a tunnel it agreed to open.
 - One binary, several subcommands, one systemd unit each:
   - `garage serve`: agents, chatroom, and the HTTP API the remote uses.
     Changes often. It renders no UI; that's the remote's job.
-  - `garage door`: the WireGuard tunnel, SSH access, and the single bucket
-    mail poller. Changes rarely, so an app crash or a bad release never locks
-    us out.
+  - `garage door`: the WireGuard tunnel and SSH access. Changes rarely, so an
+    app crash or a bad release never locks us out. Once it exists, the host's
+    single bucket poller moves here from `serve`.
 - No Docker on the host. Agents run in the workspace's own sandbox, a
   worktree and a minimal environment, as the unprivileged `garage` user; that
   user is the only boundary. Sandboxing gets re-thought once agents run here
@@ -27,12 +27,12 @@ GitHub); nothing reaches in except through a tunnel it agreed to open.
 Humans release from the laptop; agents release from the host (next section).
 Both end in the same place.
 
-1. `make release` builds linux/amd64, signs it, uploads
-   `releases/<sha>/garage`, CAS-updates `releases/current`, and sends a
-   signed "release <sha>" mail message.
-2. The host learns about it from mail, so there's no extra poller. It
-   downloads, verifies the signature, swaps the binary, and lets systemd
-   restart it.
+1. `garage remote release` runs `go build` for linux/amd64, signs the
+   result, uploads `releases/<sha>/garage`, and CAS-updates
+   `releases/current`.
+2. The host's poller GETs `releases/current` on the same tick as mail, so
+   there's no extra poller. On a new sha it downloads, verifies the
+   signature, swaps the binary, and lets systemd restart it.
 3. Rollback means pointing `releases/current` back at an older sha.
 
 ## Inception: agents deploy the garage they run in
@@ -62,9 +62,12 @@ release can't take away the way back in.
 
 ## The door: WireGuard, bootstrapped through bucket mail
 
+Mail is experimental and carries only chat for now (`bucket/CLAUDE.md`). The
+handshake below is what it has to grow into.
+
 1. The laptop learns its public UDP endpoint via STUN and sends a signed "open
    the door" mail message (wg pubkey, endpoint, short expiry).
-2. The mail poller in `garage door` receives it, and the door adds
+2. The host's poller, by then in `garage door`, receives it, and the door adds
    the peer and replies over mail with its own endpoint. Both sides then send
    UDP at each other to punch through (the host firewall is stateful, so its
    own outbound opens the way).
@@ -81,5 +84,5 @@ or Headscale. We know, and we're doing it anyway.
   opened by the door, is scoped to one IP, and expires.
 - Databases are local files; the bucket holds their daily snapshots. A dead
   disk loses at most a day, and that's accepted.
-- Host setup is a short, idempotent script in this folder, not a config
-  management system.
+- Host setup is `garage setup`: idempotent Go in this folder, with the
+  systemd units and firewall rules embedded. No scripts, no config management.

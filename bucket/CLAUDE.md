@@ -27,8 +27,8 @@ talks to S3, and it enforces a budget so nothing can spam it.
 - Strong read-after-write consistency, so a GET after a PUT sees the PUT.
 - Conditional writes (`If-None-Match: *`, `If-Match: <etag>`): create-only keys
   and compare-and-swap. This is our only locking primitive, and it is enough.
-- No push. The host has a single poller (in `garage door`), and it polls one
-  known key with GET, never LIST.
+- No push. The host has a single poller (in `garage serve` until the door
+  exists), and it polls known keys with GET, never LIST.
 - It is not a database. SQLite runs on the host; the bucket holds snapshots.
 
 ## Secrets and the master key
@@ -68,16 +68,18 @@ agents/<name>/files/           what the agent chooses to keep
 garage/db/<date>.db            garage's own databases: chatroom, tasks
 config/                        all garage config, agent definitions, prompts
 secrets/<name>.age             age-encrypted to the master key; nothing else is
-mail/to-host/<seq>             laptop -> host, a segment of messages (JSON lines)
+mail/to-host/<seq>             laptop -> host, one chat message
 mail/to-laptop/<seq>           host -> laptop, same
 releases/<sha>/garage          signed linux binaries
 releases/current               pointer: which sha the host should run
 ```
 
-- Mail is sequence-numbered and create-only. A reader GETs the next number
-  until it stops getting 404, with no cursor object and no LIST. One segment
-  carries many messages.
-- Mail is transport, not the record. Consumed segments expire through an R2
+- **Mail is experimental**, kept as small as possible until agents run on
+  their own and we know what they need to say. Then we redesign it.
+- Mail is sequence-numbered and create-only, one message per object. A reader
+  GETs the next number until it stops getting 404, with no cursor object and
+  no LIST. Chat text is the only kind of message.
+- Mail is transport, not the record. Consumed messages expire through an R2
   lifecycle rule, and snapshots do too after a retention window.
 
 ## Rules

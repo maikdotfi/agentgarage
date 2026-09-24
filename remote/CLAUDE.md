@@ -11,9 +11,9 @@ build and one release. The code lives here and is kept apart from host code.
 ## What it does
 
 - **Local UI**: a web UI on `localhost`, rendered by the remote itself.
-- **Mail**: reads `mail/to-laptop/` and writes `mail/to-host/` through the
-  budgeted bucket client. It polls every 10s, and only while the remote is
-  running.
+- **Mail** (experimental, chat only for now): reads `mail/to-laptop/` and
+  writes `mail/to-host/` through the budgeted bucket client. It polls every
+  10s, and only while the remote is running.
 - **The door**: STUN, the signed "open the door" request, and the laptop side
   of WireGuard. Once the tunnel is up, the UI talks to the host's HTTP API
   over it, and SSH works too.

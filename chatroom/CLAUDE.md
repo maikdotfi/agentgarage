@@ -16,14 +16,15 @@ goes to and from the bucket.
 
 ## Humans, through the bucket
 
-- **Inbound**: the host's single poller lives in `garage door`, the stable
-  unit, so mail (and with it the door) keeps working when `serve` is broken.
-  It checks the next `mail/to-host/<seq>` every 10s. When a segment arrives it
-  polls faster (every ~2s) for a couple of minutes, then decays back to 10s.
-  Chat messages are forwarded to this service over the unix socket.
-- **Outbound**: replies to humans queue in SQLite, and the service flushes them
-  as one `mail/to-laptop/<seq>` segment at most every 10s, or at the end of a
-  turn. It writes only final messages, never token streams or tool traces.
+Mail is experimental (`bucket/CLAUDE.md`): as small as it can be until agents
+run on their own and we know what they need to say.
+
+- **Inbound**: the host's single poller runs in `garage serve` until the door
+  exists. It GETs the next `mail/to-host/<seq>` every 10s and posts each chat
+  message to its room.
+- **Outbound**: a final reply to a human is written as one
+  `mail/to-laptop/<seq>` message, never token streams or tool traces.
+- `garage chat` over SSH needs no mail at all.
 - When the door is open, the remote reads rooms live over the tunnel (SSE),
   and the bucket isn't in the loop.
 - XMPP stays optional: `metaharness/bridge/xmpp` connecting outbound to mirror
