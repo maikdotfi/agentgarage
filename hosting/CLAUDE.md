@@ -27,7 +27,9 @@ GitHub); nothing reaches in except through a tunnel it agreed to open.
 - `Setup` (`garage setup -ssh-from <ip> -trust <laptop key>`, as root on
   Debian) checks everything it can before touching anything: r2.env is there,
   someone has an `authorized_keys`, the keys parse. Then it makes the
-  `garage` user, installs git, gh and ca-certificates, makes whichever keys
+  `garage` user, installs git, gh and ca-certificates, installs the pinned
+  `mise` release as `/usr/local/bin/mise` (sha256 checked; bump `Mise` in
+  `setup.go` to upgrade), makes whichever keys
   are missing, installs itself as `/opt/garage/releases/<content sha>/garage`,
   writes the units in `units/`, makes sshd key-only (`sshd -t` first) and
   loads `nftables.conf` (`nft -c` first). Only a changed unit or binary
@@ -45,8 +47,9 @@ GitHub); nothing reaches in except through a tunnel it agreed to open.
 - Snapshots are signed by the host key, so **a rebuild needs `signing.key` as
   well as `master.key`**, or it can't verify its own backups and every
   laptop has to pin a new host key.
-- *Not built yet:* the door unit, releases through the bucket, and Go on the
-  host for agents to run tests with.
+- There is no Go or Node on the host itself. Workspaces install what their
+  repo pins through `mise` (`workspace/CLAUDE.md`).
+- *Not built yet:* the door unit and releases through the bucket.
 
 ## Deploys: through the bucket, not gitops
 

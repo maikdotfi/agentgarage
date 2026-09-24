@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/netip"
 	"os"
 	"os/exec"
@@ -34,6 +35,16 @@ var (
 // packages are what the garage execs, from Debian.
 var packages = []string{"ca-certificates", "git", "gh"}
 
+// Download is a file setup fetches, and installs only if it matches SHA256.
+type Download struct{ URL, SHA256 string }
+
+// Mise is the mise release setup installs. Workspaces use it to install the
+// toolchains their repos pin; Debian's are too old.
+var Mise = Download{
+	URL:    "https://github.com/jdx/mise/releases/download/v2026.9.12/mise-v2026.9.12-linux-x64",
+	SHA256: "e79ae57945034903aee8aa2ea66b4c7ca9cd4f4edd5a8a78a589cbae6d0f428a",
+}
+
 // Host is the machine Setup configures. Root prefixes every path and Run
 // execs every privileged command, so a test can stand in for both; on a real
 // host Root is "" and Run is Exec.
@@ -48,6 +59,7 @@ type Config struct {
 	SSHFrom netip.Addr // the one IP SSH is open to
 	Trust   []string   // laptop public keys to accept signatures from
 	Binary  string     // the garage binary to install; usually the one running
+	Mise    Download   // zero means the pinned Mise
 }
 
 // Exec runs a command and returns its trimmed output; a failure includes it.
@@ -63,12 +75,15 @@ func Exec(ctx context.Context, name string, args ...string) (string, error) {
 // Each step checks first and changes only what it must, so running it again
 // is safe; only a changed unit or binary restarts anything.
 func Setup(ctx context.Context, h Host, cfg Config) error {
+	if cfg.Mise == (Download{}) {
+		cfg.Mise = Mise
+	}
 	s := &setup{Host: h, cfg: cfg}
 	if err := s.check(); err != nil {
 		return err
 	}
 	for _, step := range []func(context.Context) error{
-		s.user, s.packages, s.keys, s.binary, s.units, s.sshd, s.firewall,
+		s.user, s.packages, s.mise, s.keys, s.binary, s.units, s.sshd, s.firewall,
 	} {
 		if err := step(ctx); err != nil {
 			return err
@@ -150,6 +165,49 @@ func (s *setup) packages(ctx context.Context) error {
 	return nil
 }
 
+// mise installs the pinned mise as /usr/local/bin/mise, unless it is there.
+func (s *setup) mise(ctx context.Context) error {
+	path := s.path("/usr/local/bin/mise")
+	if have, err := os.ReadFile(path); err == nil && sha(have) == s.cfg.Mise.SHA256 {
+		return nil
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.cfg.Mise.URL, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("setup: GET %s: %s", s.cfg.Mise.URL, resp.Status)
+	}
+	if got := sha(raw); got != s.cfg.Mise.SHA256 {
+		return fmt.Errorf("setup: %s has sha256 %s, want %s", s.cfg.Mise.URL, got, s.cfg.Mise.SHA256)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(path+".new", raw, 0o755); err != nil {
+		return err
+	}
+	if err := os.Rename(path+".new", path); err != nil {
+		return err
+	}
+	s.say("installed %s", s.cfg.Mise.URL)
+	return nil
+}
+
+func sha(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
 // keys makes whichever of the signing and master keys is missing, trusts the
 // laptop, and says what the laptop must pin.
 func (s *setup) keys(ctx context.Context) error {
@@ -222,8 +280,7 @@ func (s *setup) binary(context.Context) error {
 	if err != nil {
 		return err
 	}
-	sum := sha256.Sum256(raw)
-	rel := filepath.Join("releases", hex.EncodeToString(sum[:])[:12], "garage")
+	rel := filepath.Join("releases", sha(raw)[:12], "garage")
 	dest := s.path(filepath.Join("/opt/garage", rel))
 	if _, err := os.Stat(dest); errors.Is(err, os.ErrNotExist) {
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {

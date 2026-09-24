@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -102,8 +106,22 @@ func (m *machine) setup(t *testing.T, cfg hosting.Config) error {
 	return hosting.Setup(context.Background(), hosting.Host{Root: m.root, Run: m.run, Out: &m.out}, cfg)
 }
 
+// release serves content as a download and counts the requests for it.
+func release(t *testing.T, content string) (hosting.Download, *int) {
+	t.Helper()
+	hits := new(int)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*hits++
+		w.Write([]byte(content))
+	}))
+	t.Cleanup(srv.Close)
+	sum := sha256.Sum256([]byte(content))
+	return hosting.Download{URL: srv.URL + "/mise", SHA256: hex.EncodeToString(sum[:])}, hits
+}
+
 func config(t *testing.T, bin, trust string) hosting.Config {
-	return hosting.Config{SSHFrom: netip.MustParseAddr("203.0.113.7"), Trust: []string{trust}, Binary: bin}
+	mise, _ := release(t, "mise v1")
+	return hosting.Config{SSHFrom: netip.MustParseAddr("203.0.113.7"), Trust: []string{trust}, Binary: bin, Mise: mise}
 }
 
 func TestSetupMakesAHostFromNothing(t *testing.T) {
@@ -271,5 +289,41 @@ func TestSSHFromAnIPv6AddressIsAllowed(t *testing.T) {
 	}
 	if nft := m.read("/etc/nftables.conf"); !strings.Contains(nft, "ip6 saddr 2001:db8::7 tcp dport 22 accept") {
 		t.Errorf("firewall:\n%s", nft)
+	}
+}
+
+func TestSetupInstallsThePinnedMiseOnce(t *testing.T) {
+	m := newMachine(t)
+	cfg := config(t, binary(t, "garage v1"), laptopKey(t))
+	mise, hits := release(t, "mise v1")
+	cfg.Mise = mise
+
+	if err := m.setup(t, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.read("/usr/local/bin/mise"); got != "mise v1" {
+		t.Errorf("/usr/local/bin/mise = %q, want the pinned release", got)
+	}
+	if fi, err := os.Stat(filepath.Join(m.root, "usr/local/bin/mise")); err != nil || fi.Mode().Perm()&0o001 == 0 {
+		t.Errorf("mise is not executable by the garage user: %v", err)
+	}
+
+	m.setup(t, cfg)
+	if *hits != 1 {
+		t.Errorf("downloaded mise %d times, want once", *hits)
+	}
+}
+
+func TestAMiseDownloadThatDoesNotMatchItsPinIsRefused(t *testing.T) {
+	m := newMachine(t)
+	cfg := config(t, binary(t, "garage v1"), laptopKey(t))
+	cfg.Mise, _ = release(t, "mise v1")
+	cfg.Mise.SHA256 = strings.Repeat("0", 64)
+
+	if err := m.setup(t, cfg); err == nil {
+		t.Fatal("setup installed a mise that does not match its pin")
+	}
+	if _, err := os.Stat(filepath.Join(m.root, "usr/local/bin/mise")); err == nil {
+		t.Error("the mismatched download was left in place")
 	}
 }

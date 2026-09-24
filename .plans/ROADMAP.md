@@ -77,6 +77,8 @@ PR appears.
    it again is safe. It:
    - makes the unprivileged `garage` user and its directories
    - installs the packages the garage execs (git, gh); Debian only
+   - installs `mise` from its GitHub release, version and sha256 pinned in
+     the binary (see step 9)
    - makes the signing key and the master key if they're missing, and prints
      the public key and recipient to pin on the laptop
    - copies itself to `/opt/garage/releases/<sha>/garage` and points
@@ -102,26 +104,55 @@ stubbed). Not yet done on a real VPS, and neither is the restore drill.
 `serve` also restores missing databases on every start, so setup needs no
 bucket code of its own.
 
+9. **Toolchains, one stack per workspace.** Debian's packages are too old
+   for this repo (trixie ships Go 1.24, `go.mod` wants 1.26), and other
+   workspaces will want Node and friends. Each workspace installs its stack
+   once and every agent on it shares that install:
+   ```
+   <Root>/<name>/
+     repo/          the clone
+     tools/         MISE_DATA_DIR: go, node, … at the versions the repo pins
+     cache/         GOMODCACHE, GOCACHE, npm_config_cache, MISE_CACHE_DIR
+     tasks/<id>/    a worktree; per-checkout deps like node_modules live here
+   ```
+   - The repo declares its stack in `mise.toml` (this repo: `go`). The
+     garage has no installers of its own.
+   - `Start(id)` runs `mise install` in the new worktree. A version another
+     task already installed costs nothing; a branch that bumps it gets the new
+     one alongside the old.
+   - `Task.Sandbox()` runs commands through `mise exec --` and adds the cache
+     variables to its minimal env, with `MISE_TRUSTED_CONFIG_PATHS` set to the
+     workspace. Dependency installs (`npm ci`, `go mod download`) are the
+     agent's business, per worktree, fed by the shared cache.
+   - System libraries (`build-essential` and the like) stay host-wide apt
+     packages in `garage setup`. Nothing is installed per agent.
+
+   Tests use a fake `mise` on PATH, like the fake `gh`.
+
+*Built:* both halves, with fakes in the tests, and `mise install` / `mise
+exec` checked by hand with the workspace's env against this repo's
+`mise.toml`. Not yet run on the VPS.
+
 **Milestone B:** the garage runs on the VPS, humans chat with it through the
 bucket (or over SSH), and agents open PRs here. The garage now works on itself.
 
 ## Phase 3: agents help build the rest
 
-9. **Re-think sandboxing.** Decide from what running agents actually do on
+10. **Re-think sandboxing.** Decide from what running agents actually do on
    the host: something of our own, or nothing more than the `garage` user.
    Whatever we choose plugs in behind `agent.Sandbox`. If it's a library
    sandbox, `agent.Command` needs an env first (see `workspace/CLAUDE.md`).
-10. **Releases and inception.** Releases through the bucket, the agent `deploy`
+11. **Releases and inception.** Releases through the bucket, the agent `deploy`
     tool (the garage builds the sha itself), versioned binaries with
     `serve-current` / `door-current`, and the door as watchdog with automatic
     rollback.
-11. **Club grug.** Reviews every PR with `grug-review`: the first check on
+12. **Club grug.** Reviews every PR with `grug-review`: the first check on
     agent-written code.
-12. **Testing grug, then monitoring grug.** Monitoring watches the bucket
+13. **Testing grug, then monitoring grug.** Monitoring watches the bucket
     budget, backups, and releases, and posts to `#garage`.
-13. **The remote UI.** Mail-backed first, live over the tunnel later. A good
+14. **The remote UI.** Mail-backed first, live over the tunnel later. A good
     task for the dev agent.
-14. **The door.** WireGuard bootstrapped through mail. A human writes this
+15. **The door.** WireGuard bootstrapped through mail. A human writes this
     one; it's the piece that can lock us out. Then SSH closes.
 
 ## First tasks for agents
@@ -135,8 +166,9 @@ garage fails before it matters. For example: "add bucket operation counters to
 - ~~Does `tursogo` support `VACUUM INTO`?~~ Yes (0.7.2), with a literal path
   only, and it doesn't unescape `''` in one. The snapshot opens in stock
   `sqlite3`.
-- The dev agent needs Go on the host to run this repo's tests. Debian's is
-  too old for `go 1.26`, so setup will have to install the official tarball.
+- ~~How does the dev agent get Go 1.26 on Debian?~~ Per-workspace toolchains
+  through `mise` (step 9). Open: postinstall scripts run arbitrary code as the
+  `garage` user; that's for the sandboxing rethink.
 - Does the `metaharness/bridge/xmpp` mirror earn its place, or does the remote
   cover phones well enough?
 - When, if ever, can an agent deploy without a human merging to `main` first?

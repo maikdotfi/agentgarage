@@ -52,9 +52,30 @@ func fakeGH(t *testing.T) (path, argsFile string) {
 	return path, argsFile
 }
 
+// fakeMise is a mise that logs where and how it was called, and runs what it
+// is asked to exec with TOOLCHAIN=mise, standing in for the repo's stack.
+func fakeMise(t *testing.T) (path, logFile string) {
+	t.Helper()
+	dir := t.TempDir()
+	logFile = filepath.Join(dir, "log")
+	path = filepath.Join(dir, "mise")
+	script := "#!/bin/sh\necho \"$PWD $*\" >> " + logFile + "\n" +
+		"if [ \"$1\" = exec ]; then shift 2; TOOLCHAIN=mise exec \"$@\"; fi\n"
+	os.WriteFile(path, []byte(script), 0o755)
+	return path, logFile
+}
+
 func open(t *testing.T, remote string) *workspace.Workspace {
 	t.Helper()
+	ws, _ := openWithLog(t, remote)
+	return ws
+}
+
+// openWithLog opens a workspace and returns its fake mise's log too.
+func openWithLog(t *testing.T, remote string) (*workspace.Workspace, string) {
+	t.Helper()
 	gh, _ := fakeGH(t)
+	mise, log := fakeMise(t)
 	ws, err := workspace.Open(context.Background(), workspace.Config{
 		Name:     "demo",
 		Remote:   remote,
@@ -62,11 +83,12 @@ func open(t *testing.T, remote string) *workspace.Workspace {
 		Identity: workspace.Identity{Name: "garage-dev", Email: "dev@garage.invalid"},
 		Env:      map[string]string{"GH_TOKEN": "ghp_hunter2"},
 		GH:       gh,
+		Mise:     mise,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return ws
+	return ws, log
 }
 
 func sh(t *testing.T, box agent.Sandbox, script string) agent.ExecResult {
@@ -143,10 +165,11 @@ func TestOpenPRPushesTheBranchAndAsksGHForAPR(t *testing.T) {
 	ctx := context.Background()
 	remote := origin(t)
 	gh, argsFile := fakeGH(t)
+	mise, _ := fakeMise(t)
 	ws, err := workspace.Open(ctx, workspace.Config{
 		Name: "demo", Remote: remote, Root: t.TempDir(),
 		Identity: workspace.Identity{Name: "garage-dev", Email: "dev@garage.invalid"},
-		GH:       gh,
+		GH:       gh, Mise: mise,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -227,5 +250,53 @@ func TestNewTasksStartFromTheLatestMain(t *testing.T) {
 	}
 	if res := sh(t, task.Sandbox(), "cat NEW.md"); res.Stdout != "new\n" {
 		t.Errorf("new task does not have the latest main: %q %q", res.Stdout, res.Stderr)
+	}
+}
+
+func TestStartInstallsTheRepoStackInTheNewWorktree(t *testing.T) {
+	ws, log := openWithLog(t, origin(t))
+	task, err := ws.Start(context.Background(), "stack")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, _ := os.ReadFile(log)
+	dir, _ := filepath.EvalSymlinks(task.Dir())
+	if !strings.Contains(string(got), dir+" install") {
+		t.Errorf("mise log = %q, want install run in %s", got, dir)
+	}
+}
+
+func TestSandboxCommandsRunWithTheRepoStack(t *testing.T) {
+	ws := open(t, origin(t))
+	task, _ := ws.Start(context.Background(), "tools")
+
+	if res := sh(t, task.Sandbox(), `echo "$TOOLCHAIN"`); res.Stdout != "mise\n" {
+		t.Errorf("stdout = %q, want the command run through mise exec", res.Stdout)
+	}
+}
+
+func TestTasksShareTheWorkspaceToolsAndCachesOutsideTheirWorktrees(t *testing.T) {
+	ws := open(t, origin(t))
+	a, _ := ws.Start(context.Background(), "share-a")
+	b, _ := ws.Start(context.Background(), "share-b")
+	vars := []string{"MISE_DATA_DIR", "MISE_CACHE_DIR", "GOMODCACHE", "GOCACHE", "npm_config_cache"}
+	script := ""
+	for _, v := range vars {
+		script += `echo "$` + v + `";`
+	}
+
+	ea, eb := sh(t, a.Sandbox(), script).Stdout, sh(t, b.Sandbox(), script).Stdout
+	if ea != eb {
+		t.Errorf("tasks see different tools and caches:\n%s\n%s", ea, eb)
+	}
+	for i, dir := range strings.Split(strings.TrimSpace(ea), "\n") {
+		if dir == "" || strings.HasPrefix(dir, a.Dir()) {
+			t.Errorf("%s = %q, want a shared directory outside the worktree", vars[i], dir)
+		}
+	}
+	trusted := strings.TrimSpace(sh(t, a.Sandbox(), `echo "$MISE_TRUSTED_CONFIG_PATHS"`).Stdout)
+	if trusted == "" || !strings.HasPrefix(a.Dir(), trusted) {
+		t.Errorf("MISE_TRUSTED_CONFIG_PATHS = %q, want it to cover %s", trusted, a.Dir())
 	}
 }

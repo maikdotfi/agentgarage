@@ -25,6 +25,11 @@ noun; there is no other name for it anywhere in the code.
   worktree with a minimal environment (PATH, HOME, the commit identity, the
   credentials) and **none** of the garage's own, so the bucket token never
   reaches an agent. Credential values are redacted from all output.
+- Toolchains come from the repo's `mise.toml`, one install per workspace.
+  `Start` runs `mise install` in the new worktree, and the sandbox runs every
+  command through `mise exec --`. Tasks share `<Root>/<name>/tools`
+  (`MISE_DATA_DIR`) and `<Root>/<name>/cache` (Go, npm and mise caches); deps
+  like `node_modules` stay per worktree. Tests point `Config.Mise` at a fake.
 - `Task.OpenPR` refuses uncommitted or empty work, pushes the branch (never
   forced) and runs `gh pr create`. Tests point `Config.GH` at a fake script.
 - git over HTTPS gets `GH_TOKEN` through a credential helper set by

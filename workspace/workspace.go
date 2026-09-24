@@ -1,6 +1,8 @@
 // Package workspace is where agents do real work on a real repo: one clone per
 // workspace, and a git worktree on its own branch per task. Credentials reach a
 // task's commands as environment variables at exec time and never its output.
+// Commands run through mise, with the stack the repo pins in its mise.toml
+// installed once per workspace and shared by its tasks.
 package workspace
 
 import (
@@ -34,6 +36,8 @@ type Config struct {
 	Env map[string]string
 	// GH is the gh binary; empty means "gh" on PATH.
 	GH string
+	// Mise is the mise binary; empty means "mise" on PATH.
+	Mise string
 }
 
 // Workspace is a cloned repo that hands out tasks.
@@ -54,6 +58,9 @@ func Open(ctx context.Context, cfg Config) (*Workspace, error) {
 	}
 	if cfg.GH == "" {
 		cfg.GH = "gh"
+	}
+	if cfg.Mise == "" {
+		cfg.Mise = "mise"
 	}
 	ws := &Workspace{cfg: cfg, repo: filepath.Join(cfg.Root, cfg.Name, "repo"), env: environ(cfg)}
 	if _, err := os.Stat(ws.repo); errors.Is(err, os.ErrNotExist) {
@@ -77,7 +84,8 @@ func Open(ctx context.Context, cfg Config) (*Workspace, error) {
 func (ws *Workspace) Name() string { return ws.cfg.Name }
 
 // Start fetches the remote and gives the task its own worktree, on the new
-// branch garage/<id> off the latest default branch.
+// branch garage/<id> off the latest default branch, with the repo's stack
+// installed.
 func (ws *Workspace) Start(ctx context.Context, id string) (*Task, error) {
 	if !plainName.MatchString(id) {
 		return nil, fmt.Errorf("workspace: %q is not a plain task id", id)
@@ -87,6 +95,9 @@ func (ws *Workspace) Start(ctx context.Context, id string) (*Task, error) {
 	}
 	t := &Task{ws: ws, id: id, branch: "garage/" + id, dir: filepath.Join(ws.cfg.Root, ws.cfg.Name, "tasks", id)}
 	if _, err := ws.run(ctx, ws.repo, "git", "worktree", "add", "-q", "-b", t.branch, t.dir, "origin/"+ws.base); err != nil {
+		return nil, err
+	}
+	if _, err := ws.run(ctx, t.dir, ws.cfg.Mise, "install"); err != nil {
 		return nil, err
 	}
 	return t, nil
@@ -103,8 +114,8 @@ type Task struct {
 func (t *Task) Branch() string { return t.branch }
 func (t *Task) Dir() string    { return t.dir }
 
-// Sandbox runs commands in the task's worktree with only the workspace's
-// credentials and identity in their environment.
+// Sandbox runs commands in the task's worktree, through mise exec, with only
+// the workspace's credentials, identity, tools and caches in their environment.
 func (t *Task) Sandbox() agent.Sandbox { return sandbox{t} }
 
 // OpenPR pushes the task's branch and opens a PR against the default branch,
@@ -164,9 +175,12 @@ func (ws *Workspace) redact(s string) string {
 }
 
 // environ is everything a workspace's commands see: enough of the host to run
-// tools, the commit identity and the credentials. Nothing else of the garage's
-// environment, such as its bucket token, gets through.
+// tools, the shared tools and caches, the commit identity and the credentials.
+// Nothing else of the garage's environment, such as its bucket token, gets
+// through.
 func environ(cfg Config) []string {
+	root := filepath.Join(cfg.Root, cfg.Name)
+	cache := filepath.Join(root, "cache")
 	var env []string
 	for _, k := range []string{"PATH", "HOME", "USER", "TMPDIR", "LANG"} {
 		if v, ok := os.LookupEnv(k); ok {
@@ -174,6 +188,12 @@ func environ(cfg Config) []string {
 		}
 	}
 	env = append(env,
+		"MISE_DATA_DIR="+filepath.Join(root, "tools"),
+		"MISE_CACHE_DIR="+filepath.Join(cache, "mise"),
+		"MISE_TRUSTED_CONFIG_PATHS="+root,
+		"GOMODCACHE="+filepath.Join(cache, "gomod"),
+		"GOCACHE="+filepath.Join(cache, "gobuild"),
+		"npm_config_cache="+filepath.Join(cache, "npm"),
 		"GIT_TERMINAL_PROMPT=0",
 		"GIT_AUTHOR_NAME="+cfg.Identity.Name, "GIT_AUTHOR_EMAIL="+cfg.Identity.Email,
 		"GIT_COMMITTER_NAME="+cfg.Identity.Name, "GIT_COMMITTER_EMAIL="+cfg.Identity.Email,
@@ -202,7 +222,8 @@ func (s sandbox) Close() error { return nil }
 
 func (s sandbox) Exec(ctx context.Context, c agent.Command) (agent.ExecResult, error) {
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, c.Cmd, c.Args...)
+	args := append([]string{"exec", "--", c.Cmd}, c.Args...)
+	cmd := exec.CommandContext(ctx, s.t.ws.cfg.Mise, args...)
 	cmd.Dir, cmd.Env, cmd.Stdout, cmd.Stderr = s.t.dir, s.t.ws.env, &stdout, &stderr
 	if err := cmd.Run(); err != nil {
 		var exit *exec.ExitError

@@ -32,7 +32,9 @@ EOF
 ## On a laptop (Milestone A)
 
 One laptop plays both sides, so one `~/.garage` holds the signing key, the
-master key and its recipient.
+master key and its recipient. `serve` execs `git`, `gh` and
+[`mise`](https://mise.jdx.dev), which installs each workspace's toolchain from
+its `mise.toml`.
 
 ```sh
 go build -o garage ./cmd/garage

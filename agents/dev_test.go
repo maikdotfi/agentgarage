@@ -28,7 +28,8 @@ func git(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// newWorkspace is a workspace over a local bare repo, with a gh that prints a PR URL.
+// newWorkspace is a workspace over a local bare repo, with a gh that prints a
+// PR URL and a mise that just runs what it is asked to exec.
 func newWorkspace(t *testing.T, name string) (*workspace.Workspace, string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -43,8 +44,10 @@ func newWorkspace(t *testing.T, name string) (*workspace.Workspace, string) {
 
 	gh := filepath.Join(dir, "gh")
 	os.WriteFile(gh, []byte("#!/bin/sh\necho https://github.com/example/"+name+"/pull/1\n"), 0o755)
+	mise := filepath.Join(dir, "mise")
+	os.WriteFile(mise, []byte("#!/bin/sh\nif [ \"$1\" = exec ]; then shift 2; exec \"$@\"; fi\n"), 0o755)
 	ws, err := workspace.Open(context.Background(), workspace.Config{
-		Name: name, Remote: bare, Root: t.TempDir(), GH: gh,
+		Name: name, Remote: bare, Root: t.TempDir(), GH: gh, Mise: mise,
 		Identity: workspace.Identity{Name: "dev", Email: "dev@garage.invalid"},
 	})
 	if err != nil {
