@@ -41,7 +41,7 @@ range `garage setup -ssh-from` allows.
   restarts anything.
 - Every privileged command goes through `Host.Run`, and every path through
   `Host.Root`, so tests use a pretend machine. `Exec` is the real thing.
-- Host layout: `/etc/garage` (the keys, `trusted.keys`, `r2.env`) and
+- Host layout: `/etc/garage` (the keys, `trusted.keys`, `r2.env`, and the optional `serve.env` that picks the agents' models) and
   `/var/lib/garage` (databases, workspaces, the socket), both owned by
   `garage`, 0700. `cmd/garage` finds them by the existence of `/var/lib/garage`.
 - Backups: `garage backup` asks `serve` over the socket (`POST /backup`),

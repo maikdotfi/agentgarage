@@ -158,3 +158,22 @@ func loadConfig(ctx context.Context, c *bucket.Caller) (garageConfig, error) {
 	}
 	return parseConfig(obj.Body)
 }
+
+// modelChoice is the model an agent runs: its id, an Anthropic-compatible
+// endpoint ("" for Anthropic's), and the name of the secret holding its key.
+type modelChoice struct{ ID, URL, Key string }
+
+// agentModel is the model for the agent called name. GARAGE_<NAME>_MODEL,
+// _MODEL_URL and _MODEL_KEY win over GARAGE_MODEL and friends, which win over
+// the bucket config.
+func agentModel(cfg garageConfig, name string, getenv func(string) string) modelChoice {
+	pick := func(suffix, fallback string) string {
+		for _, k := range []string{"GARAGE_" + strings.ToUpper(name) + "_" + suffix, "GARAGE_" + suffix} {
+			if v := getenv(k); v != "" {
+				return v
+			}
+		}
+		return fallback
+	}
+	return modelChoice{ID: pick("MODEL", cfg.Model), URL: pick("MODEL_URL", cfg.ModelURL), Key: pick("MODEL_KEY", "ANTHROPIC_API_KEY")}
+}

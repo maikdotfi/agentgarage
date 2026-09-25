@@ -29,6 +29,19 @@ EOF
 
 `model` (default `claude-sonnet-5`) and `model_url` are optional.
 
+`serve` also reads the model from its environment, which wins over the config:
+`GARAGE_MODEL`, `GARAGE_MODEL_URL` (any Anthropic-compatible endpoint, such as
+`https://ollama.com`) and `GARAGE_MODEL_KEY`, the name of the secret holding
+the key (default `ANTHROPIC_API_KEY`). `GARAGE_DEV_*` and `GARAGE_GRUG_*`
+set one agent's. On the host they go in `/etc/garage/serve.env`:
+
+```sh
+GARAGE_MODEL_URL=https://ollama.com
+GARAGE_MODEL_KEY=OLLAMA_API_KEY
+GARAGE_MODEL=<a model Ollama Cloud serves>
+GARAGE_GRUG_MODEL=<another, just for grug>
+```
+
 ## On a laptop (Milestone A)
 
 One laptop plays both sides, so one `~/.garage` holds the signing key, the

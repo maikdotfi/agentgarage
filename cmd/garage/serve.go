@@ -137,15 +137,27 @@ func runServe(ctx context.Context, env serveEnv) error {
 	if err != nil {
 		return err
 	}
-	apiKey, err := master.Get(ctx, b.Caller("secrets"), "ANTHROPIC_API_KEY")
+	// clientFor is the model client and id for the agent called name.
+	clientFor := func(name string) (model.ModelClient, string, error) {
+		choice := agentModel(cfg, name, os.Getenv)
+		if env.model != nil {
+			return env.model, choice.ID, nil
+		}
+		apiKey, err := master.Get(ctx, b.Caller("secrets"), choice.Key)
+		if err != nil {
+			return nil, "", err
+		}
+		m, err := model.New(model.Config{Provider: model.ProviderAnthropic, APIKey: apiKey, BaseURL: choice.URL})
+		slog.Info("garage serve: model", "agent", name, "model", choice.ID, "url", choice.URL, "key", choice.Key)
+		return m, choice.ID, err
+	}
+	devModel, devID, err := clientFor(agents.DevName)
 	if err != nil {
 		return err
 	}
-	m := env.model
-	if m == nil {
-		if m, err = model.New(model.Config{Provider: model.ProviderAnthropic, APIKey: apiKey, BaseURL: cfg.ModelURL}); err != nil {
-			return err
-		}
+	grugModel, grugID, err := clientFor(agents.GrugName)
+	if err != nil {
+		return err
 	}
 
 	var workspaces []*workspace.Workspace
@@ -199,10 +211,10 @@ func runServe(ctx context.Context, env serveEnv) error {
 		}
 	}
 	chat.Join(agents.DevName, counted(agents.Dev(agents.DevConfig{
-		Chat: chat, Model: m, ModelID: cfg.Model, Store: turso.New(devDB), Workspaces: workspaces, Deploy: deploy,
+		Chat: chat, Model: devModel, ModelID: devID, Store: turso.New(devDB), Workspaces: workspaces, Deploy: deploy,
 	})))
 	chat.Join(agents.GrugName, counted(agents.Grug(agents.GrugConfig{
-		Chat: chat, Model: m, ModelID: cfg.Model, Store: turso.New(grugDB), Workspaces: workspaces,
+		Chat: chat, Model: grugModel, ModelID: grugID, Store: turso.New(grugDB), Workspaces: workspaces,
 	})))
 
 	var wg sync.WaitGroup
@@ -296,7 +308,7 @@ func runServe(ctx context.Context, env serveEnv) error {
 		srv.Shutdown(shutdown)
 		webSrv.Shutdown(shutdown)
 	})
-	slog.Info("garage serve: listening", "socket", sock, "ui", "http://"+env.ui.Addr().String(), "model", cfg.Model)
+	slog.Info("garage serve: listening", "socket", sock, "ui", "http://"+env.ui.Addr().String())
 	if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
 		cancel()
 		return err

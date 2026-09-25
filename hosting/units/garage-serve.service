@@ -6,6 +6,8 @@ After=network-online.target
 
 [Service]
 User=garage
+# Optional: the agents' models, as GARAGE_MODEL and friends (README.md).
+EnvironmentFile=-/etc/garage/serve.env
 Group=garage
 ExecStart=/opt/garage/serve-current serve
 # Until the laptop has written the config and secrets, serve exits; keep trying.
