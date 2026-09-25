@@ -1,0 +1,22 @@
+{{define "main"}}
+<form class="open" action="/rooms" method="get">
+  <input name="name" placeholder="room name" aria-label="room name" required autocomplete="off">
+  <button>open</button>
+</form>
+{{if .}}
+<table class="rooms">
+  <thead><tr><th>room</th><th>latest</th><th class="time">when</th></tr></thead>
+  <tbody>
+  {{range .}}
+    <tr>
+      <td class="room"><a href="{{roomURL .Room}}">{{.Room}}</a></td>
+      <td class="latest"><span class="author">{{.Author}}</span> {{.Text}}</td>
+      <td class="time"><time datetime="{{stamp .Time}}">{{when .Time}}</time></td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<p class="empty">No rooms yet. Open one, and mention <code>@dev</code> to hand it work.</p>
+{{end}}
+{{end}}

@@ -379,7 +379,7 @@ func (s *setup) sshd(ctx context.Context) error {
 	return nil
 }
 
-// firewall drops everything inbound but SSH from the one IP or range. The ruleset is
+// firewall drops everything inbound but SSH and the UI from the one IP or range. The ruleset is
 // checked before it replaces the old one, and loaded only then.
 func (s *setup) firewall(ctx context.Context) error {
 	var want bytes.Buffer
@@ -413,7 +413,7 @@ func (s *setup) firewall(ctx context.Context) error {
 	if _, err := s.Run(ctx, "systemctl", "enable", "nftables.service"); err != nil {
 		return err
 	}
-	s.say("firewall drops everything inbound but SSH from %s", s.cfg.SSHFrom)
+	s.say("firewall drops everything inbound but SSH and the UI from %s", s.cfg.SSHFrom)
 	return nil
 }
 

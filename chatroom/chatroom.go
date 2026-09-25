@@ -135,6 +135,12 @@ func (s *Service) Read(ctx context.Context, room string, after int64) ([]Message
 		room, after)
 }
 
+// Rooms is the latest message in every room, the most recently active room first.
+func (s *Service) Rooms(ctx context.Context) ([]Message, error) {
+	return s.query(ctx, `SELECT id, room, author, text, created_at FROM messages
+		WHERE id IN (SELECT MAX(id) FROM messages GROUP BY room) ORDER BY id DESC`)
+}
+
 func (s *Service) query(ctx context.Context, query string, args ...any) ([]Message, error) {
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {

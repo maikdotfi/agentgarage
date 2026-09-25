@@ -279,6 +279,19 @@ func TestSetupRefusesBeforeTouchingAnything(t *testing.T) {
 	}
 }
 
+func TestTheUIIsOpenToTheSameRangeAsSSH(t *testing.T) {
+	m := newMachine(t)
+	cfg := config(t, binary(t, "garage v1"), laptopKey(t))
+	cfg.SSHFrom = netip.MustParsePrefix("192.168.100.0/24")
+
+	if err := m.setup(t, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if nft := m.read("/etc/nftables.conf"); !strings.Contains(nft, "ip saddr 192.168.100.0/24 tcp dport 8080 accept") {
+		t.Errorf("firewall does not open the UI to the SSH range:\n%s", nft)
+	}
+}
+
 func TestSSHFromAnIPv6AddressIsAllowed(t *testing.T) {
 	m := newMachine(t)
 	cfg := config(t, binary(t, "garage v1"), laptopKey(t))

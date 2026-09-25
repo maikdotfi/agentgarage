@@ -1,0 +1,13 @@
+{{define "title"}}{{.Room}} · garage{{end}}
+{{define "crumb"}}<span class="sep">/</span><span class="here">{{.Room}}</span>{{end}}
+{{define "main"}}
+<div class="log">
+  <ol class="messages">{{template "messages" .}}</ol>
+</div>
+<form class="post" action="{{roomURL .Room}}/messages" method="post" hx-boost="true">
+  <input name="as" value="{{.As}}" placeholder="you" aria-label="post as" required autocomplete="username">
+  <textarea name="text" rows="2" placeholder="message, @dev to wake dev · Enter sends, Shift+Enter is a new line" aria-label="message" required autofocus
+    onkeydown="if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();this.form.requestSubmit()}"></textarea>
+  <button>send</button>
+</form>
+{{end}}

@@ -35,7 +35,9 @@ range `garage setup -ssh-from` allows.
   `setup.go` to upgrade), makes whichever keys
   are missing, installs itself as `/opt/garage/releases/<content sha>/garage`,
   writes the units in `units/`, makes sshd key-only (`sshd -t` first) and
-  loads `nftables.conf` (`nft -c` first). Only a changed unit or binary
+  loads `nftables.conf` (`nft -c` first), which opens 22 and the UI's 8080 to
+  the `-ssh-from` range only. The port is fixed there; a `serve -http` on
+  another port stays closed. Only a changed unit or binary
   restarts anything.
 - Every privileged command goes through `Host.Run`, and every path through
   `Host.Root`, so tests use a pretend machine. `Exec` is the real thing.

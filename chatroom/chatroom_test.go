@@ -60,6 +60,25 @@ func TestRoomsKeepTheirOwnMessagesInOrder(t *testing.T) {
 	}
 }
 
+func TestRoomsListsEachRoomByItsLatestMessageNewestFirst(t *testing.T) {
+	s := open(t, ":memory:")
+	post(t, s, "a", "mike", "one")
+	post(t, s, "b", "mike", "elsewhere")
+	post(t, s, "a", "dev", "two")
+
+	rooms, err := s.Rooms(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, m := range rooms {
+		got = append(got, m.Room+" "+m.Author+": "+m.Text)
+	}
+	if strings.Join(got, "|") != "a dev: two|b mike: elsewhere" {
+		t.Errorf("rooms = %q", got)
+	}
+}
+
 func TestMessagesOutliveTheProcess(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "chatroom.db")
 	s, err := chatroom.Open(context.Background(), path)

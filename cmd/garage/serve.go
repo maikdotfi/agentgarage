@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -26,6 +27,7 @@ import (
 	"github.com/maikdotfi/agentgarage/hosting"
 	"github.com/maikdotfi/agentgarage/metaharness/agentdb/turso"
 	"github.com/maikdotfi/agentgarage/metaharness/model"
+	"github.com/maikdotfi/agentgarage/ui"
 	"github.com/maikdotfi/agentgarage/workspace"
 )
 
@@ -44,16 +46,28 @@ var serveLimits = map[string]bucket.Limit{
 	"chat-poll": {Every: time.Second, Burst: 20},
 }
 
-// serve runs the chatroom, the dev agent and the mail relay, and answers on
-// the unix socket until it is signalled to stop. Its config is in the bucket.
+// serve runs the chatroom, the dev agent, the mail relay and the chat UI, and
+// answers on the unix socket until it is signalled to stop. Its config is in
+// the bucket.
 func serve(args []string, _ io.Reader, _, stderr io.Writer) int {
-	if len(args) > 0 {
+	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	addr := fs.String("http", "0.0.0.0:8080", "where the chat UI listens; garage setup opens :8080 to the SSH range")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() > 0 {
 		fmt.Fprintf(stderr, "garage serve takes no arguments; its config is %s in the bucket\n", configKey)
 		return 2
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	if err := runServe(ctx, serveEnv{home: garageHome(), keys: keysDir(), mailEvery: 10 * time.Second}); err != nil {
+	ui, err := net.Listen("tcp", *addr)
+	if err != nil {
+		fmt.Fprintln(stderr, "garage serve:", err)
+		return 1
+	}
+	if err := runServe(ctx, serveEnv{home: garageHome(), keys: keysDir(), ui: ui, mailEvery: 10 * time.Second}); err != nil {
 		fmt.Fprintln(stderr, "garage serve:", err)
 		return 1
 	}
@@ -63,10 +77,14 @@ func serve(args []string, _ io.Reader, _, stderr io.Writer) int {
 type serveEnv struct {
 	home, keys string
 	store      bucket.Store // nil is R2
+	ui         net.Listener // the chat UI's; runServe closes it
 	mailEvery  time.Duration
 }
 
 func runServe(ctx context.Context, env serveEnv) error {
+	if env.ui != nil {
+		defer env.ui.Close()
+	}
 	b, err := openBucket(env.keys, env.store, serveLimits)
 	if err != nil {
 		return err
@@ -180,6 +198,18 @@ func runServe(ctx context.Context, env serveEnv) error {
 		fmt.Fprintln(w, strings.Join(written, "\n"))
 	})
 
+	web, err := ui.New(chat)
+	if err != nil {
+		return err
+	}
+	webSrv := &http.Server{Handler: web, ReadHeaderTimeout: 10 * time.Second}
+	wg.Go(func() {
+		if err := webSrv.Serve(env.ui); !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("garage serve: chat UI", "err", err)
+			cancel()
+		}
+	})
+
 	sock := filepath.Join(env.home, socketFile)
 	os.Remove(sock) // a socket left by a process that is gone
 	ln, err := net.Listen("unix", sock)
@@ -195,8 +225,9 @@ func runServe(ctx context.Context, env serveEnv) error {
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		srv.Shutdown(shutdown)
+		webSrv.Shutdown(shutdown)
 	})
-	slog.Info("garage serve: listening", "socket", sock, "model", cfg.Model)
+	slog.Info("garage serve: listening", "socket", sock, "ui", "http://"+env.ui.Addr().String(), "model", cfg.Model)
 	if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
 		cancel()
 		return err

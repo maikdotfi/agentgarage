@@ -4,6 +4,10 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,11 +50,12 @@ func origin(t *testing.T) string {
 // that shares its fake bucket.
 type garageHost struct {
 	home   string
+	ui     string // where serve's chat UI listens, once it runs
 	store  *bucket.Fake
 	laptop *bucket.Caller
 }
 
-func newHost(t *testing.T) garageHost {
+func newHost(t *testing.T) *garageHost {
 	t.Helper()
 	dir := home(t)
 	if code, _, errOut := garage(t, "", "init", "-master"); code != 0 {
@@ -65,11 +70,11 @@ func newHost(t *testing.T) garageHost {
 	store := bucket.NewFake()
 	laptop := bucket.New(store, lpriv, []ed25519.PublicKey{hostKey.Public().(ed25519.PublicKey)},
 		map[string]bucket.Limit{"laptop": {Every: time.Millisecond, Burst: 100}}).Caller("laptop")
-	return garageHost{home: dir, store: store, laptop: laptop}
+	return &garageHost{home: dir, store: store, laptop: laptop}
 }
 
 // configure writes the secrets and the config a laptop would.
-func (h garageHost) configure(t *testing.T) {
+func (h *garageHost) configure(t *testing.T) {
 	t.Helper()
 	ctx := context.Background()
 	recipient, _ := os.ReadFile(filepath.Join(h.home, recipientFile))
@@ -86,12 +91,17 @@ func (h garageHost) configure(t *testing.T) {
 
 // serve runs garage serve on the fake bucket until the test ends, and waits
 // for its socket.
-func (h garageHost) serve(t *testing.T) {
+func (h *garageHost) serve(t *testing.T) {
 	t.Helper()
+	ui, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.ui = "http://" + ui.Addr().String()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		done <- runServe(ctx, serveEnv{home: h.home, keys: h.home, store: h.store, mailEvery: 10 * time.Millisecond})
+		done <- runServe(ctx, serveEnv{home: h.home, keys: h.home, store: h.store, ui: ui, mailEvery: 10 * time.Millisecond})
 	}()
 	t.Cleanup(func() {
 		cancel()
@@ -114,7 +124,7 @@ func (h garageHost) serve(t *testing.T) {
 }
 
 // waitFor reads room over the socket until a message has text.
-func (h garageHost) waitFor(t *testing.T, room, text string) {
+func (h *garageHost) waitFor(t *testing.T, room, text string) {
 	t.Helper()
 	c := socketClient(filepath.Join(h.home, socketFile))
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -140,6 +150,23 @@ func TestServeTakesMailFromTheLaptop(t *testing.T) {
 	mail.Send(context.Background(), h.laptop, mail.ToHost, 0, mail.Message{Room: "fix", Author: "mike", Text: "hello from the laptop"})
 
 	h.waitFor(t, "fix", "hello from the laptop")
+}
+
+func TestServeShowsTheChatUIOverHTTP(t *testing.T) {
+	h := newHost(t)
+	h.configure(t)
+	h.serve(t)
+
+	resp, err := http.PostForm(h.ui+"/rooms/fix/messages", url.Values{"as": {"mike"}, "text": {"hello from the browser"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "hello from the browser") {
+		t.Errorf("status %d, want the room with the new message:\n%s", resp.StatusCode, body)
+	}
+	h.waitFor(t, "fix", "hello from the browser")
 }
 
 func TestBackupSnapshotsEveryDatabase(t *testing.T) {

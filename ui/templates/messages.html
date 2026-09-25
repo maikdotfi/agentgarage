@@ -1,0 +1,4 @@
+{{define "messages"}}
+{{range .Messages}}{{template "message" .}}{{end}}
+<li class="poll" hx-get="{{roomURL .Room}}/messages?after={{.After}}" hx-trigger="every 2s" hx-swap="outerHTML"></li>
+{{end}}

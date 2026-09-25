@@ -1,0 +1,6 @@
+{{define "message"}}
+<li class="message" id="m{{.ID}}">
+  <div class="meta"><span class="author">{{.Author}}</span><a class="time" href="#m{{.ID}}"><time datetime="{{stamp .Time}}">{{when .Time}}</time></a></div>
+  <div class="text">{{.Text}}</div>
+</li>
+{{end}}

@@ -1,0 +1,183 @@
+/* The garage's one stylesheet: dense, legible, tool-like. */
+
+:root {
+  --bg: #f6f5f1;
+  --panel: #ffffff;
+  --ink: #1d1f21;
+  --dim: #6b6f73;
+  --line: #dcdad3;
+  --accent: #b4530a;
+  --focus: #2b6cb0;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151617;
+    --panel: #1c1e20;
+    --ink: #e4e2dc;
+    --dim: #8d9196;
+    --line: #2e3134;
+    --accent: #f0913a;
+    --focus: #7ab3ef;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.45 var(--sans);
+}
+
+a { color: inherit; }
+a:hover { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+code { font-family: var(--mono); font-size: 13px; }
+
+nav {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  padding: .45rem .9rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+nav .home { font-weight: 700; text-decoration: none; color: var(--accent); }
+nav .sep { color: var(--dim); }
+
+main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+input, textarea, button {
+  font: inherit;
+  color: inherit;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: .35rem .5rem;
+}
+button {
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 13px;
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+button:hover { background: var(--accent); border-color: var(--accent); }
+
+/* The room list. */
+
+form.open { display: flex; gap: .4rem; padding: .9rem; }
+form.open input { flex: 1; max-width: 20rem; font-family: var(--mono); }
+
+table.rooms {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+.rooms th {
+  text-align: left;
+  font: 600 11px var(--mono);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--dim);
+  padding: .3rem .9rem;
+  border-bottom: 1px solid var(--line);
+}
+.rooms td {
+  padding: .35rem .9rem;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rooms tr:hover td { background: var(--panel); }
+.rooms th:first-child, .rooms td.room { width: 14rem; }
+.rooms .room a { font-family: var(--mono); font-weight: 600; text-decoration: none; }
+.rooms .time { width: 7.5rem; text-align: right; color: var(--dim); font-family: var(--mono); font-size: 12px; }
+.rooms .latest { color: var(--dim); }
+.rooms .latest .author { color: var(--ink); font-family: var(--mono); font-size: 13px; }
+
+.empty { padding: 0 .9rem; color: var(--dim); }
+
+/* A room. column-reverse keeps the log scrolled to the newest message. */
+
+.log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+ol.messages { list-style: none; margin: 0; padding: .4rem 0; }
+
+.message {
+  display: grid;
+  grid-template-columns: 9rem 1fr;
+  gap: .9rem;
+  padding: .3rem .9rem;
+  border-bottom: 1px solid transparent;
+}
+.message:hover { background: var(--panel); }
+.message:target { background: var(--panel); box-shadow: inset 2px 0 var(--accent); }
+.message .meta {
+  display: flex;
+  justify-content: space-between;
+  gap: .4rem;
+  font-family: var(--mono);
+  font-size: 12px;
+  padding-top: .1rem;
+  min-width: 0;
+}
+.message .author { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.message .time { color: var(--dim); text-decoration: none; flex: none; }
+.message .text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+  font-size: 13px;
+  min-width: 0;
+}
+
+.poll { height: 0; }
+
+form.post {
+  display: grid;
+  grid-template-columns: 9rem 1fr auto;
+  gap: .5rem;
+  align-items: stretch;
+  padding: .6rem .9rem;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+form.post input { font-family: var(--mono); font-size: 13px; }
+form.post textarea { resize: vertical; min-height: 2.6rem; max-height: 40vh; font-family: var(--mono); font-size: 13px; }
+
+@media (max-width: 40rem) {
+  .message { grid-template-columns: 1fr; gap: .1rem; }
+  .message .meta { justify-content: flex-start; }
+  form.post { grid-template-columns: 1fr auto; }
+  form.post input { grid-column: 1 / -1; }
+  .rooms th:first-child, .rooms td.room { width: 9rem; }
+  .rooms .time { width: 5.5rem; }
+}

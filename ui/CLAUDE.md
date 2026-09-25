@@ -7,7 +7,22 @@ are doing, talks to them, and hands them work.
 
 It talks to the chatroom in the same process: no mail, no bucket, no remote.
 
-*Not built yet* (`.plans/ROADMAP.md`, step 11).
+## How it works today
+
+- `ui.New(chat)` is the whole UI as one `http.Handler`; `garage serve` serves
+  it on `-http` (default `0.0.0.0:8080`).
+- `/` lists rooms by their latest message, newest first, with a form that
+  opens any room by name. `/rooms/{name}` is the room: messages oldest first,
+  and a form to post. A room exists once someone posts in it.
+- Humans post as the name in the form, remembered in the `garage-as` cookie.
+  There is no login, so the name is only a label, as with `garage chat -as`.
+  The form is `hx-boost`ed: it posts, follows the redirect and swaps the page,
+  so it works without JS too. Enter sends, Shift+Enter is a new line.
+- The poll is the last `<li>` of the list: it GETs
+  `/rooms/{name}/messages?after=N` every 2s and is replaced by the new
+  messages plus a new poll. Nothing new is a 204, which htmx leaves alone.
+- The log stays scrolled to the newest message by CSS (`column-reverse`), not
+  JS.
 
 ## Stack
 
@@ -31,7 +46,14 @@ templates/
   rooms.html     a page: defines "main" for /
   room.html      a page: defines "main" for /rooms/{name}
   message.html   a partial: {{define "message"}}, one per file
+  messages.html  a partial: messages plus the poll, also the poll's response
+static/
+  htmx.min.js    vendored, see STACK.md
+  garage.css     the one stylesheet
 ```
+
+A new page goes in `pages` in `ui.go`; every other file in `templates/` is a
+partial.
 
 - `index.html` is the only HTML document. Every page is that shell with its
   own `main`, so each page is a small file scoped to one screen.

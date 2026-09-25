@@ -29,7 +29,12 @@ noun; there is no other name for it anywhere in the code.
   `Start` runs `mise install` in the new worktree, and the sandbox runs every
   command through `mise exec --`. Tasks share `<Root>/<name>/tools`
   (`MISE_DATA_DIR`) and `<Root>/<name>/cache` (Go, npm and mise caches); deps
-  like `node_modules` stay per worktree. Tests point `Config.Mise` at a fake.
+  like `node_modules` stay per worktree. Only the repo's `mise.toml` counts:
+  the env points mise's global config into the workspace (where there is
+  none) and stops its search at `tasks/`, so the host user's own mise tools
+  never leak in. Tests point `Config.Mise` at a fake;
+  `GARAGE_TEST_MISE=1 go test ./workspace` runs the real mise on PATH
+  against a clone of this repo (it downloads Go).
 - `Task.OpenPR` refuses uncommitted or empty work, pushes the branch (never
   forced) and runs `gh pr create`. Tests point `Config.GH` at a fake script.
 - git over HTTPS gets `GH_TOKEN` through a credential helper set by

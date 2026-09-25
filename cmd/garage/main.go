@@ -11,9 +11,9 @@ import (
 const usage = `usage: garage <command> [arguments]
 
 commands:
-  serve     run agents and the chatroom (host)
+  serve     run agents, the chatroom and the chat UI (host)
   door      run the tunnel, SSH access and the mail poller (host)
-  remote    the laptop side: UI, mail, the door
+  remote    the laptop side: config, secrets, mail
   backup    snapshot every database to the bucket
   restore   bring databases back from the bucket
   chat      talk to the chatroom over the local socket

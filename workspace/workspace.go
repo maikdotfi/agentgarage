@@ -191,6 +191,11 @@ func environ(cfg Config) []string {
 		"MISE_DATA_DIR="+filepath.Join(root, "tools"),
 		"MISE_CACHE_DIR="+filepath.Join(cache, "mise"),
 		"MISE_TRUSTED_CONFIG_PATHS="+root,
+		// Only the repo's mise.toml counts: not the host user's global
+		// config, nor any mise.toml above the worktrees.
+		"MISE_CONFIG_DIR="+filepath.Join(root, "mise-config"),
+		"MISE_GLOBAL_CONFIG_FILE="+filepath.Join(root, "mise-config", "config.toml"),
+		"MISE_CEILING_PATHS="+filepath.Join(root, "tasks"),
 		"GOMODCACHE="+filepath.Join(cache, "gomod"),
 		"GOCACHE="+filepath.Join(cache, "gobuild"),
 		"npm_config_cache="+filepath.Join(cache, "npm"),

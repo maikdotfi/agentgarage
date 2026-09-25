@@ -160,6 +160,17 @@ The target: open the chat UI and start coding on agentgarage right away with
     same range as SSH, so on a public VPS it would still be private. Small
     enough to write by hand, since agents need it to be reachable at all.
 
+*Built:* the UI (`ui/`), served by `garage serve -http` (default
+`0.0.0.0:8080`), with htmx 2.0.11 vendored; tested with `httptest` and
+driven in headless Chrome against a local `serve` (post, poll, a real
+mention waking dev). `garage setup` opens 8080 to the SSH range. For step
+10, the real mise (opt-in test, `GARAGE_TEST_MISE=1`) installs Go 1.26 into
+`tools/` from a clone of this repo and `go build`s it through `mise exec`,
+which turned up one fix: the host user's global mise config leaked its tools
+into every workspace. Not yet run on the host: the firewall, the UI from
+another machine on the LAN, and a first task filling `tools/` as the
+`garage` user under `/var/lib/garage`.
+
 **Milestone C:** open `http://<host>:8080`, "@dev do X in agentgarage", and a
 PR appears, built and tested with the Go that mise put in `tools/`.
 
