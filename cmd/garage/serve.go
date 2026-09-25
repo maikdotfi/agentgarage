@@ -144,6 +144,11 @@ func runServe(ctx context.Context, env serveEnv) error {
 			return env.model, choice.ID, nil
 		}
 		apiKey, err := master.Get(ctx, b.Caller("secrets"), choice.Key)
+		if err != nil && choice.Key != "ANTHROPIC_API_KEY" {
+			// The name came from the environment, and may well be a pasted key.
+			return nil, "", fmt.Errorf("%s: no secret by the name GARAGE_%s_MODEL_KEY or GARAGE_MODEL_KEY gives; it names a secret, it doesn't hold the key",
+				name, strings.ToUpper(name))
+		}
 		if err != nil {
 			return nil, "", err
 		}

@@ -59,19 +59,19 @@ func TestDevPicksUpItsTaskAfterARestart(t *testing.T) {
 		testutils.AssistantToolCall(t, "2", "bash", map[string]string{"cmd": "cat one.txt && git branch --show-current"}),
 		testutils.AssistantText("still here"),
 	}}
-	join := func(g garage) {
-		g.chat.Join("dev", agents.Dev(agents.DevConfig{Chat: g.chat, Model: m, ModelID: "x", Store: g.store, Workspaces: []*workspace.Workspace{ws}}))
+	join := func(g garage, modelID string) {
+		g.chat.Join("dev", agents.Dev(agents.DevConfig{Chat: g.chat, Model: m, ModelID: modelID, Store: g.store, Workspaces: []*workspace.Workspace{ws}}))
 	}
 
 	before := start(t, dir)
-	join(before)
+	join(before, "old-model")
 	ask := post(t, before.chat, "task", "mike", "@dev write one.txt")
 	replyFrom(t, before.chat, "task", "dev", ask.ID)
 	before.stop()
 
 	after := start(t, dir)
 	defer after.stop()
-	join(after)
+	join(after, "new-model")
 	again := post(t, after.chat, "task", "mike", "@dev now read it back")
 	replyFrom(t, after.chat, "task", "dev", again.ID)
 
@@ -83,6 +83,9 @@ func TestDevPicksUpItsTaskAfterARestart(t *testing.T) {
 	}
 	if n := strings.Count(second, "@dev write one.txt"); n != 1 {
 		t.Errorf("the first ask is in the session %d times, want once", n)
+	}
+	if got := m.Calls[2].Model; got != "new-model" {
+		t.Errorf("the turn after the restart asked %q, want the model dev runs now", got)
 	}
 	if got := lastToolResult(m.Calls[3]); !strings.Contains(got, "one") || !strings.Contains(got, "garage/task-") {
 		t.Errorf("after the restart dev ran in %q, want the same worktree and branch", got)

@@ -205,6 +205,7 @@ func (d *dev) resume(ctx context.Context, room string) (*task, error) {
 	if err := sess.Bind(wt.Sandbox()); err != nil {
 		return nil, err
 	}
+	sess.Model = d.cfg.ModelID // the model dev runs now, not the one the task began with
 	return &task{room: room, ws: ws, wt: wt, sess: sess, seen: rec.Seen}, nil
 }
 

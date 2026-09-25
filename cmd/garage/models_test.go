@@ -79,3 +79,17 @@ func TestAnAgentsOwnVariablesWinOverTheShared(t *testing.T) {
 		t.Errorf("grug: %+v, want %+v", grug, want)
 	}
 }
+
+func TestAKeyPastedAsTheSecretsNameStaysOutOfTheError(t *testing.T) {
+	for _, pasted := range []string{"92ebad.39-meUjp2QWKs83fi", "sk_live_abc123"} {
+		t.Setenv("GARAGE_MODEL_KEY", pasted)
+		h := newHost(t)
+		h.configure(t)
+
+		err := runServe(context.Background(), serveEnv{home: h.home, keys: h.home, store: h.store, mailEvery: time.Second})
+
+		if err == nil || strings.Contains(err.Error(), pasted) || !strings.Contains(err.Error(), "GARAGE_MODEL_KEY") {
+			t.Errorf("serve with GARAGE_MODEL_KEY=%s: %v, want an error naming the variable but not its value", pasted, err)
+		}
+	}
+}
