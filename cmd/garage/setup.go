@@ -17,7 +17,7 @@ import (
 func setup(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	sshFrom := fs.String("ssh-from", "", "the one IP that may SSH in")
+	sshFrom := fs.String("ssh-from", "", "the one IP, or range such as 192.168.1.0/24, that may SSH in")
 	var trust []string
 	fs.Func("trust", "a laptop's public key, as garage init prints it; repeatable", func(v string) error {
 		trust = append(trust, v)
@@ -26,9 +26,12 @@ func setup(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	ip, err := netip.ParseAddr(*sshFrom)
+	from, err := netip.ParsePrefix(*sshFrom)
+	if ip, ipErr := netip.ParseAddr(*sshFrom); ipErr == nil {
+		from, err = netip.PrefixFrom(ip.Unmap(), ip.Unmap().BitLen()), nil
+	}
 	if err != nil {
-		fmt.Fprintln(stderr, "garage setup: give -ssh-from <ip>, the one address that may SSH in")
+		fmt.Fprintln(stderr, "garage setup: give -ssh-from <ip or range>, the one address or range that may SSH in")
 		return 2
 	}
 	if runtime.GOOS != "linux" || os.Geteuid() != 0 {
@@ -41,7 +44,7 @@ func setup(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 		return 1
 	}
 	err = hosting.Setup(context.Background(), hosting.Host{Run: hosting.Exec, Out: stdout},
-		hosting.Config{SSHFrom: ip, Trust: trust, Binary: self})
+		hosting.Config{SSHFrom: from, Trust: trust, Binary: self})
 	if err != nil {
 		fmt.Fprintln(stderr, "garage setup:", err)
 		return 1

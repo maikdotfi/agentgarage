@@ -66,7 +66,7 @@ scp r2.env root@host:/etc/garage/
 # rebuilding a dead host only: the offline copies of both host keys
 # scp master.key signing.key root@host:/etc/garage/
 scp garage-linux root@host:garage
-ssh root@host ./garage setup -ssh-from <your ip> -trust <laptop public key>
+ssh root@host ./garage setup -ssh-from <your ip or LAN range> -trust <laptop public key>
 ```
 
 `setup` prints the host's public key and the master recipient. Add the first

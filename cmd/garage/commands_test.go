@@ -117,6 +117,14 @@ func TestTheBucketCanComeFromR2Env(t *testing.T) {
 	}
 }
 
+func TestSetupTakesARangeToSSHFrom(t *testing.T) {
+	home(t)
+	code, _, errOut := garage(t, "", "setup", "-ssh-from", "192.168.100.0/24", "-trust", "abc")
+	if code == 2 || strings.Contains(errOut, "-ssh-from") {
+		t.Errorf("exit %d, stderr %q; want the range accepted", code, errOut)
+	}
+}
+
 func TestSetupNeedsTheOneIPThatMaySSHIn(t *testing.T) {
 	home(t)
 	code, _, errOut := garage(t, "", "setup", "-trust", "abc")

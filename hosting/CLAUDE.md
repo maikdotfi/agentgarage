@@ -24,7 +24,7 @@ GitHub); nothing reaches in except through a tunnel it agreed to open.
 
 ## How it works today
 
-- `Setup` (`garage setup -ssh-from <ip> -trust <laptop key>`, as root on
+- `Setup` (`garage setup -ssh-from <ip or range> -trust <laptop key>`, as root on
   Debian) checks everything it can before touching anything: r2.env is there,
   someone has an `authorized_keys`, the keys parse. Then it makes the
   `garage` user, installs git, gh and ca-certificates, installs the pinned

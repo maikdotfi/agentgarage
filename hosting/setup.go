@@ -56,10 +56,10 @@ type Host struct {
 
 // Config is what a human gives garage setup.
 type Config struct {
-	SSHFrom netip.Addr // the one IP SSH is open to
-	Trust   []string   // laptop public keys to accept signatures from
-	Binary  string     // the garage binary to install; usually the one running
-	Mise    Download   // zero means the pinned Mise
+	SSHFrom netip.Prefix // the one IP, or range, SSH is open to
+	Trust   []string     // laptop public keys to accept signatures from
+	Binary  string       // the garage binary to install; usually the one running
+	Mise    Download     // zero means the pinned Mise
 }
 
 // Exec runs a command and returns its trimmed output; a failure includes it.
@@ -106,7 +106,7 @@ func (s *setup) say(format string, args ...any) { fmt.Fprintf(s.Out, format+"\n"
 // or lock everyone out of it.
 func (s *setup) check() error {
 	if !s.cfg.SSHFrom.IsValid() {
-		return errors.New("setup: give the one IP that may SSH in")
+		return errors.New("setup: give the IP or range that may SSH in")
 	}
 	for _, k := range s.cfg.Trust {
 		if pub, err := base64.StdEncoding.DecodeString(k); err != nil || len(pub) != ed25519.PublicKeySize {
@@ -379,16 +379,20 @@ func (s *setup) sshd(ctx context.Context) error {
 	return nil
 }
 
-// firewall drops everything inbound but SSH from the one IP. The ruleset is
+// firewall drops everything inbound but SSH from the one IP or range. The ruleset is
 // checked before it replaces the old one, and loaded only then.
 func (s *setup) firewall(ctx context.Context) error {
 	var want bytes.Buffer
-	family := "ip"
-	if s.cfg.SSHFrom.Is6() && !s.cfg.SSHFrom.Is4In6() {
+	from := s.cfg.SSHFrom.Masked()
+	family, saddr := "ip", from.String()
+	if from.Addr().Is6() {
 		family = "ip6"
 	}
+	if from.IsSingleIP() {
+		saddr = from.Addr().String()
+	}
 	template.Must(template.New("nft").Parse(nftablesConf)).Execute(&want,
-		map[string]string{"Family": family, "SSHFrom": s.cfg.SSHFrom.Unmap().String()})
+		map[string]string{"Family": family, "SSHFrom": saddr})
 	path := s.path("/etc/nftables.conf")
 	if have, err := os.ReadFile(path); err == nil && bytes.Equal(have, want.Bytes()) {
 		return nil

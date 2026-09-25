@@ -121,7 +121,7 @@ func release(t *testing.T, content string) (hosting.Download, *int) {
 
 func config(t *testing.T, bin, trust string) hosting.Config {
 	mise, _ := release(t, "mise v1")
-	return hosting.Config{SSHFrom: netip.MustParseAddr("203.0.113.7"), Trust: []string{trust}, Binary: bin, Mise: mise}
+	return hosting.Config{SSHFrom: netip.MustParsePrefix("203.0.113.7/32"), Trust: []string{trust}, Binary: bin, Mise: mise}
 }
 
 func TestSetupMakesAHostFromNothing(t *testing.T) {
@@ -261,7 +261,7 @@ func TestSetupRefusesBeforeTouchingAnything(t *testing.T) {
 			cfg.Trust = []string{"not-a-key"}
 		},
 		"no IP to allow SSH from": func(t *testing.T, m *machine, cfg *hosting.Config) {
-			cfg.SSHFrom = netip.Addr{}
+			cfg.SSHFrom = netip.Prefix{}
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -282,12 +282,25 @@ func TestSetupRefusesBeforeTouchingAnything(t *testing.T) {
 func TestSSHFromAnIPv6AddressIsAllowed(t *testing.T) {
 	m := newMachine(t)
 	cfg := config(t, binary(t, "garage v1"), laptopKey(t))
-	cfg.SSHFrom = netip.MustParseAddr("2001:db8::7")
+	cfg.SSHFrom = netip.MustParsePrefix("2001:db8::7/128")
 
 	if err := m.setup(t, cfg); err != nil {
 		t.Fatal(err)
 	}
 	if nft := m.read("/etc/nftables.conf"); !strings.Contains(nft, "ip6 saddr 2001:db8::7 tcp dport 22 accept") {
+		t.Errorf("firewall:\n%s", nft)
+	}
+}
+
+func TestSSHFromARangeIsAllowed(t *testing.T) {
+	m := newMachine(t)
+	cfg := config(t, binary(t, "garage v1"), laptopKey(t))
+	cfg.SSHFrom = netip.MustParsePrefix("192.168.100.0/24")
+
+	if err := m.setup(t, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if nft := m.read("/etc/nftables.conf"); !strings.Contains(nft, "ip saddr 192.168.100.0/24 tcp dport 22 accept") {
 		t.Errorf("firewall:\n%s", nft)
 	}
 }
