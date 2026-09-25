@@ -449,18 +449,22 @@ func (b *personalBot) handlePrompt(ctx context.Context, chatID int64, text strin
 // the transcript.
 func (b *personalBot) keepTyping(ctx context.Context, chatID int64) (stop func()) {
 	tctx, cancel := context.WithCancel(ctx)
+	typing := func() {
+		_, _ = b.api.SendChatAction(tctx, &bot.SendChatActionParams{
+			ChatID: chatID,
+			Action: models.ChatActionTyping,
+		})
+	}
+	typing() // before the turn starts, not whenever the goroutine gets scheduled
 	go func() {
 		ticker := time.NewTicker(typingInterval)
 		defer ticker.Stop()
 		for {
-			_, _ = b.api.SendChatAction(tctx, &bot.SendChatActionParams{
-				ChatID: chatID,
-				Action: models.ChatActionTyping,
-			})
 			select {
 			case <-tctx.Done():
 				return
 			case <-ticker.C:
+				typing()
 			}
 		}
 	}()

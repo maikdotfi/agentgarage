@@ -94,7 +94,7 @@ func TestChatWithoutServeSaysSo(t *testing.T) {
 func TestServeWithoutABucketSaysWhatIsMissing(t *testing.T) {
 	home(t)
 	t.Setenv("GARAGE_R2_ENDPOINT", "")
-	code, _, errOut := garage(t, "", "serve")
+	code, _, errOut := garage(t, "", "serve", "-http", "127.0.0.1:0") // never the real :8080, which a host may be using
 	if code == 0 || !strings.Contains(errOut, "GARAGE_R2_ENDPOINT") || !strings.Contains(errOut, "r2.env") {
 		t.Errorf("exit %d, stderr %q", code, errOut)
 	}
@@ -111,7 +111,7 @@ func TestTheBucketCanComeFromR2Env(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "r2.env"), []byte("# the bucket\nGARAGE_R2_ENDPOINT="+empty.URL+
 		"\nGARAGE_R2_BUCKET=garage\nGARAGE_R2_ACCESS_KEY_ID=id\nGARAGE_R2_SECRET_ACCESS_KEY=secret\n"), 0o600)
 
-	code, _, errOut := garage(t, "", "serve")
+	code, _, errOut := garage(t, "", "serve", "-http", "127.0.0.1:0") // never the real :8080, which a host may be using
 	if code == 0 || !strings.Contains(errOut, "garage remote config") {
 		t.Errorf("exit %d, stderr %q; want serve to reach the bucket and find no config", code, errOut)
 	}
