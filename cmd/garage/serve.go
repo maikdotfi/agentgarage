@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -36,7 +37,16 @@ import (
 var databases = map[string]string{
 	"garage/chatroom": "chatroom.db",
 	"agents/dev":      filepath.Join("agents", "dev.db"),
+	"agents/grug":     filepath.Join("agents", "grug.db"),
 }
+
+// garageWorkspace is the workspace that is the garage's own repo: the one
+// dev's deploy tool builds releases from.
+const garageWorkspace = "agentgarage"
+
+// errRestart is serve stopping because a new release is installed; systemd
+// starts it again, into the new binary.
+var errRestart = errors.New("restarting into a new release")
 
 // serveLimits are garage serve's callers of the bucket.
 var serveLimits = map[string]bucket.Limit{
@@ -44,6 +54,7 @@ var serveLimits = map[string]bucket.Limit{
 	"config":    {Every: time.Second, Burst: 5},
 	"backup":    {Every: time.Second, Burst: 10},
 	"chat-poll": {Every: time.Second, Burst: 20},
+	"release":   {Every: time.Second, Burst: 5},
 }
 
 // serve runs the chatroom, the dev and grug agents, the mail relay and the chat UI, and
@@ -67,7 +78,16 @@ func serve(args []string, _ io.Reader, _, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "garage serve:", err)
 		return 1
 	}
-	if err := runServe(ctx, serveEnv{home: garageHome(), keys: keysDir(), ui: ui, mailEvery: 10 * time.Second}); err != nil {
+	releases := ""
+	if os.Getenv("GARAGE_HOME") == "" && onHost() {
+		releases = hosting.Releases
+	}
+	err = runServe(ctx, serveEnv{home: garageHome(), keys: keysDir(), ui: ui, mailEvery: 10 * time.Second, releases: releases})
+	if errors.Is(err, errRestart) {
+		fmt.Fprintln(stderr, "garage serve:", err)
+		return 0
+	}
+	if err != nil {
 		fmt.Fprintln(stderr, "garage serve:", err)
 		return 1
 	}
@@ -79,6 +99,10 @@ type serveEnv struct {
 	store      bucket.Store // nil is R2
 	ui         net.Listener // the chat UI's; runServe closes it
 	mailEvery  time.Duration
+	// releases is where new releases are installed, on a host; "" means no
+	// polling for releases and no deploys.
+	releases string
+	model    model.ModelClient // nil is the configured provider
 }
 
 func runServe(ctx context.Context, env serveEnv) error {
@@ -117,12 +141,15 @@ func runServe(ctx context.Context, env serveEnv) error {
 	if err != nil {
 		return err
 	}
-	m, err := model.New(model.Config{Provider: model.ProviderAnthropic, APIKey: apiKey, BaseURL: cfg.ModelURL})
-	if err != nil {
-		return err
+	m := env.model
+	if m == nil {
+		if m, err = model.New(model.Config{Provider: model.ProviderAnthropic, APIKey: apiKey, BaseURL: cfg.ModelURL}); err != nil {
+			return err
+		}
 	}
 
 	var workspaces []*workspace.Workspace
+	var deploy func(ctx context.Context, room, sha string) (string, error)
 	for name, remote := range cfg.Workspaces {
 		ws, err := workspace.Open(ctx, workspace.Config{
 			Name: name, Remote: remote, Root: filepath.Join(env.home, "workspaces"),
@@ -133,42 +160,83 @@ func runServe(ctx context.Context, env serveEnv) error {
 			return err
 		}
 		workspaces = append(workspaces, ws)
+		if name == garageWorkspace && env.releases != "" {
+			deploy = func(ctx context.Context, room, sha string) (string, error) {
+				full, err := hosting.Deploy(ctx, b.Caller("release"), env.releases, ws, sha, room)
+				if err != nil {
+					return "", err
+				}
+				return "Released " + full + ". The garage restarts into it once no agent is busy, and posts \"running <sha>\" here when it is back.", nil
+			}
+		}
 	}
 
 	if err := os.MkdirAll(filepath.Join(env.home, "agents"), 0o700); err != nil {
 		return err
 	}
-	conn, err := tursodrv.NewConnector(paths["agents/dev"])
+	devDB, err := openAgentDB(ctx, paths["agents/dev"])
 	if err != nil {
 		return err
 	}
-	devDB := sql.OpenDB(conn)
 	defer devDB.Close()
-	if err := turso.Migrate(ctx, devDB); err != nil {
+	grugDB, err := openAgentDB(ctx, paths["agents/grug"])
+	if err != nil {
 		return err
 	}
+	defer grugDB.Close()
 	chat, err := chatroom.Open(ctx, paths["garage/chatroom"])
 	if err != nil {
 		return err
 	}
 	defer chat.Close()
-	chat.Join(agents.DevName, agents.Dev(agents.DevConfig{
-		Chat: chat, Model: m, ModelID: cfg.Model, Store: turso.New(devDB), Workspaces: workspaces,
-	}))
-	chat.Join(agents.GrugName, agents.Grug(agents.GrugConfig{
-		Chat: chat, Model: m, ModelID: cfg.Model, Workspaces: workspaces,
-	}))
+	// busy counts the agents mid-turn, so a restart waits for them.
+	var busy atomic.Int64
+	counted := func(h chatroom.Handler) chatroom.Handler {
+		return func(ctx context.Context, m chatroom.Message) {
+			busy.Add(1)
+			defer busy.Add(-1)
+			h(ctx, m)
+		}
+	}
+	chat.Join(agents.DevName, counted(agents.Dev(agents.DevConfig{
+		Chat: chat, Model: m, ModelID: cfg.Model, Store: turso.New(devDB), Workspaces: workspaces, Deploy: deploy,
+	})))
+	chat.Join(agents.GrugName, counted(agents.Grug(agents.GrugConfig{
+		Chat: chat, Model: m, ModelID: cfg.Model, Store: turso.New(grugDB), Workspaces: workspaces,
+	})))
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	restarting := make(chan string, 1)
 	wg.Go(func() {
 		tick := time.NewTicker(env.mailEvery)
 		defer tick.Stop()
+		looked, installed := false, ""
 		for {
 			if err := chat.RelayMail(ctx, b.Caller("chat-poll")); err != nil && ctx.Err() == nil {
 				slog.Warn("garage serve: mail relay", "err", err)
+			}
+			if env.releases != "" && installed == "" {
+				sha, err := hosting.Update(ctx, b.Caller("release"), env.releases)
+				if err != nil && ctx.Err() == nil {
+					slog.Warn("garage serve: release", "err", err)
+				}
+				if installed = sha; installed != "" {
+					slog.Info("garage serve: installed a release; restarting once no agent is busy", "sha", sha)
+				} else if !looked {
+					// Booted into the release a room deployed: tell it, which wakes dev to check.
+					if room, text := hosting.Booted(env.releases); room != "" {
+						chat.Post(ctx, room, agents.GarageName, "@"+agents.DevName+" "+text)
+					}
+				}
+				looked = true
+			}
+			if installed != "" && busy.Load() == 0 {
+				restarting <- installed
+				cancel()
+				return
 			}
 			select {
 			case <-tick.C:
@@ -180,13 +248,8 @@ func runServe(ctx context.Context, env serveEnv) error {
 
 	snapshots := map[string]hosting.Snapshot{
 		"garage/chatroom": chat.Snapshot,
-		"agents/dev": func(ctx context.Context, path string) error {
-			if strings.ContainsRune(path, '\'') { // Turso takes only a literal here
-				return fmt.Errorf("snapshot path %q has a quote", path)
-			}
-			_, err := devDB.ExecContext(ctx, "VACUUM INTO '"+path+"'")
-			return err
-		},
+		"agents/dev":      vacuum(devDB),
+		"agents/grug":     vacuum(grugDB),
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/rooms/", chat.Handler())
@@ -238,5 +301,35 @@ func runServe(ctx context.Context, env serveEnv) error {
 		cancel()
 		return err
 	}
-	return nil
+	select {
+	case sha := <-restarting:
+		return fmt.Errorf("%w: %s", errRestart, sha)
+	default:
+		return nil
+	}
+}
+
+// openAgentDB opens an agent's own database, with metaharness's schema.
+func openAgentDB(ctx context.Context, path string) (*sql.DB, error) {
+	conn, err := tursodrv.NewConnector(path)
+	if err != nil {
+		return nil, err
+	}
+	db := sql.OpenDB(conn)
+	if err := turso.Migrate(ctx, db); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return db, nil
+}
+
+// vacuum snapshots a database with VACUUM INTO.
+func vacuum(db *sql.DB) hosting.Snapshot {
+	return func(ctx context.Context, path string) error {
+		if strings.ContainsRune(path, '\'') { // Turso takes only a literal here
+			return fmt.Errorf("snapshot path %q has a quote", path)
+		}
+		_, err := db.ExecContext(ctx, "VACUUM INTO '"+path+"'")
+		return err
+	}
 }

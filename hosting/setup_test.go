@@ -212,9 +212,27 @@ func TestANewBinaryRestartsOnlyServe(t *testing.T) {
 	if got := m.read("/opt/garage/serve-current"); got != "garage v2" {
 		t.Errorf("serve-current runs %q", got)
 	}
-	releases, _ := os.ReadDir(filepath.Join(m.root, "opt/garage/releases"))
+	releases, _ := filepath.Glob(filepath.Join(m.root, "opt/garage/releases/*/garage"))
 	if len(releases) != 2 {
 		t.Errorf("%d releases, want the old one kept for rollback", len(releases))
+	}
+}
+
+func TestServeCanMoveItsOwnReleaseButNotTheLinkSystemdRuns(t *testing.T) {
+	m := newMachine(t)
+	if err := m.setup(t, config(t, binary(t, "garage v1"), laptopKey(t))); err != nil {
+		t.Fatal(err)
+	}
+
+	releases := filepath.Join(m.root, hosting.Releases)
+	if !slices.Contains(m.ran, "chown -R garage:garage "+releases) {
+		t.Errorf("the releases are not the garage user's; ran:\n%s", strings.Join(m.ran, "\n"))
+	}
+	if got, _ := os.Readlink(filepath.Join(m.root, "/opt/garage/serve-current")); got != "releases/current" {
+		t.Errorf("serve-current points at %q, want the garage user's releases/current", got)
+	}
+	if got := hosting.Running(releases); got == "" || m.read(filepath.Join(hosting.Releases, got, "garage")) != "garage v1" {
+		t.Errorf("releases/current runs %q, want the binary setup was given", got)
 	}
 }
 

@@ -215,6 +215,22 @@ and grug help build it.
     door exists there is no watchdog: rolling back means `garage setup` with
     the old binary, by hand.
 
+*Built:* both, locally. dev's rooms and grug's reviewed heads live in their
+own databases (`agents/dev.db`, `agents/grug.db`, both backed up), so a
+restarted dev resumes the room's worktree and session. The shared workspace
+now serialises the garage's git commands. Releases go through the bucket
+(`hosting/release.go`): `garage remote release` from a laptop, or dev's
+`deploy` tool, which has the garage test and build a merged sha itself. The
+poller in `serve` installs a release signed by a trusted key that runs,
+flips `releases/current` (the garage user's; `serve-current` is root's and
+fixed), waits until no agent is mid-turn and exits for systemd to restart
+it; on boot it posts "@dev running <sha>" to the deploying room. Only a
+human's mention may deploy, so the notice can't loop. Rollback is `garage
+remote release -point <sha>` or `garage setup` with the old binary. Tested
+with the fake bucket, a temp `/opt/garage`, scripted models, and once with a
+real build installed and run. Not yet run on the host; setup must be rerun
+there once for the new layout.
+
 **Milestone E:** a human merges, and the garage builds, deploys and restarts
 into it without losing the room.
 

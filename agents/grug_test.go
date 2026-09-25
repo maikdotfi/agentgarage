@@ -28,8 +28,8 @@ func TestGrugReviewsThePRDevOpensAndDevAnswers(t *testing.T) {
 		testutils.AssistantText("grug see hello.txt. hello simple. grug happy."),
 	}}
 	workspaces := []*workspace.Workspace{ws}
-	chat.Join("dev", agents.Dev(agents.DevConfig{Chat: chat, Model: devModel, ModelID: "x", Workspaces: workspaces}))
-	chat.Join("grug", agents.Grug(agents.GrugConfig{Chat: chat, Model: grugModel, ModelID: "x", Workspaces: workspaces}))
+	chat.Join("dev", agents.Dev(agents.DevConfig{Chat: chat, Model: devModel, ModelID: "x", Store: newStore(t), Workspaces: workspaces}))
+	chat.Join("grug", agents.Grug(agents.GrugConfig{Chat: chat, Model: grugModel, ModelID: "x", Store: newStore(t), Workspaces: workspaces}))
 
 	ask := post(t, chat, "hello", "mike", "@dev add hello.txt in demo")
 
@@ -92,7 +92,7 @@ func TestGrugReviewsEachPRHeadOnce(t *testing.T) {
 		testutils.AssistantText("review one"),
 		testutils.AssistantText("review two"),
 	}}
-	chat.Join("grug", agents.Grug(agents.GrugConfig{Chat: chat, Model: m, ModelID: "x", Workspaces: []*workspace.Workspace{ws}}))
+	chat.Join("grug", agents.Grug(agents.GrugConfig{Chat: chat, Model: m, ModelID: "x", Store: newStore(t), Workspaces: []*workspace.Workspace{ws}}))
 	task := openedPR(t, ws)
 	const ask = "@grug review https://github.com/example/demo/pull/1"
 
@@ -126,7 +126,7 @@ func TestGrugStopsReviewingAPRAfterThreeRounds(t *testing.T) {
 	m := &testutils.ScriptedModel{Replies: []model.Message{
 		testutils.AssistantText("round 1"), testutils.AssistantText("round 2"), testutils.AssistantText("round 3"),
 	}}
-	chat.Join("grug", agents.Grug(agents.GrugConfig{Chat: chat, Model: m, ModelID: "x", Workspaces: []*workspace.Workspace{ws}}))
+	chat.Join("grug", agents.Grug(agents.GrugConfig{Chat: chat, Model: m, ModelID: "x", Store: newStore(t), Workspaces: []*workspace.Workspace{ws}}))
 	task := openedPR(t, ws)
 
 	var reply string
@@ -148,7 +148,7 @@ func TestGrugWantsAPRLink(t *testing.T) {
 	ws, _, _ := newWorkspace(t, "demo")
 	chat := newChat(t)
 	m := &testutils.ScriptedModel{}
-	chat.Join("grug", agents.Grug(agents.GrugConfig{Chat: chat, Model: m, ModelID: "x", Workspaces: []*workspace.Workspace{ws}}))
+	chat.Join("grug", agents.Grug(agents.GrugConfig{Chat: chat, Model: m, ModelID: "x", Store: newStore(t), Workspaces: []*workspace.Workspace{ws}}))
 
 	reply := replyFrom(t, chat, "r", "grug", post(t, chat, "r", "dev", "thanks @grug!").ID)
 	if strings.Contains(reply.Text, "@") || !strings.Contains(reply.Text, "link") {

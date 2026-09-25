@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/maikdotfi/agentgarage/metaharness/agent"
 )
@@ -41,12 +42,14 @@ type Config struct {
 	Mise string
 }
 
-// Workspace is a cloned repo that hands out tasks.
+// Workspace is a cloned repo that hands out tasks. It is safe for concurrent
+// use: the garage's own commands on the clone run one at a time.
 type Workspace struct {
 	cfg  Config
 	repo string
 	base string // the remote's default branch
 	env  []string
+	mu   sync.Mutex // held by run: git locks its own files and fails rather than waits
 }
 
 var plainName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
@@ -102,6 +105,40 @@ func (ws *Workspace) Start(ctx context.Context, id string) (*Task, error) {
 		return nil, err
 	}
 	return t, nil
+}
+
+// Resume is a task Start made earlier, perhaps in another process, with its
+// worktree as it was left.
+func (ws *Workspace) Resume(id string) (*Task, error) {
+	if !plainName.MatchString(id) {
+		return nil, fmt.Errorf("workspace: %q is not a plain task id", id)
+	}
+	t := &Task{ws: ws, id: id, branch: "garage/" + id, dir: filepath.Join(ws.cfg.Root, ws.cfg.Name, "tasks", id), env: ws.env}
+	if _, err := os.Stat(t.dir); err != nil {
+		return nil, fmt.Errorf("workspace: no worktree for task %s: %w", id, err)
+	}
+	return t, nil
+}
+
+var commitSHA = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
+
+// Merged is the full sha of the commit rev abbreviates, if it is on the
+// remote's default branch. Only a sha will do, not a branch name.
+func (ws *Workspace) Merged(ctx context.Context, rev string) (string, error) {
+	if !commitSHA.MatchString(rev) {
+		return "", fmt.Errorf("workspace: %q is not a commit", rev)
+	}
+	if _, err := ws.run(ctx, ws.repo, "git", "fetch", "-q", "origin"); err != nil {
+		return "", err
+	}
+	sha, err := ws.run(ctx, ws.repo, "git", "rev-parse", "--verify", "--end-of-options", rev+"^{commit}")
+	if err != nil {
+		return "", fmt.Errorf("workspace: %s is not a commit here", rev)
+	}
+	if _, err := ws.run(ctx, ws.repo, "git", "merge-base", "--is-ancestor", sha, "origin/"+ws.base); err != nil {
+		return "", fmt.Errorf("workspace: %s is not on %s", rev, ws.base)
+	}
+	return sha, nil
 }
 
 // PullRequest is a PR on the workspace's remote, as gh sees it.
@@ -215,6 +252,8 @@ func (t *Task) Close() error {
 // run is for the garage's own commands: it fails on a non-zero exit and
 // returns trimmed, redacted stdout.
 func (ws *Workspace) run(ctx context.Context, dir, name string, args ...string) (string, error) {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
 	var stdout, stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir, cmd.Env, cmd.Stdout, cmd.Stderr = dir, ws.env, &stdout, &stderr

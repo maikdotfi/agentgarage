@@ -118,7 +118,7 @@ func TestDevOpensAPRWhenAskedInARoom(t *testing.T) {
 		testutils.AssistantToolCall(t, "2", "open_pull_request", map[string]string{"title": "Add hello", "body": "Says hi."}),
 		testutils.AssistantText("Done: https://github.com/example/demo/pull/1"),
 	}}
-	chat.Join("dev", agents.Dev(agents.DevConfig{Chat: chat, Model: m, ModelID: "test-model", Workspaces: []*workspace.Workspace{ws}}))
+	chat.Join("dev", agents.Dev(agents.DevConfig{Chat: chat, Model: m, ModelID: "test-model", Store: newStore(t), Workspaces: []*workspace.Workspace{ws}}))
 
 	ask := post(t, chat, "hello", "mike", "@dev add hello.txt in demo")
 
@@ -152,7 +152,7 @@ func TestDevContinuesTheSameTaskInTheSameRoom(t *testing.T) {
 		testutils.AssistantToolCall(t, "2", "bash", map[string]string{"cmd": "cat one.txt"}),
 		testutils.AssistantText("still here"),
 	}}
-	chat.Join("dev", agents.Dev(agents.DevConfig{Chat: chat, Model: m, ModelID: "x", Workspaces: []*workspace.Workspace{ws}}))
+	chat.Join("dev", agents.Dev(agents.DevConfig{Chat: chat, Model: m, ModelID: "x", Store: newStore(t), Workspaces: []*workspace.Workspace{ws}}))
 
 	ask := post(t, chat, "task", "mike", "@dev write one.txt")
 	replyFrom(t, chat, "task", "dev", ask.ID)
@@ -176,7 +176,7 @@ func TestDevAsksWhichWorkspaceWhenItCannotTell(t *testing.T) {
 	b, _, _ := newWorkspace(t, "beta")
 	chat := newChat(t)
 	m := &testutils.ScriptedModel{}
-	chat.Join("dev", agents.Dev(agents.DevConfig{Chat: chat, Model: m, ModelID: "x", Workspaces: []*workspace.Workspace{a, b}}))
+	chat.Join("dev", agents.Dev(agents.DevConfig{Chat: chat, Model: m, ModelID: "x", Store: newStore(t), Workspaces: []*workspace.Workspace{a, b}}))
 
 	ask := post(t, chat, "r", "mike", "@dev fix the bug")
 	reply := replyFrom(t, chat, "r", "dev", ask.ID)

@@ -14,9 +14,18 @@ the room it was mentioned in.
 - Tools: bash and the file tools, run in the task's worktree, plus
   `open_pull_request`, which calls `workspace.Task.OpenPR` (a second call
   pushes to the PR already open) and posts the link with `@grug`.
+- `deploy`, only when the garage gives `DevConfig.Deploy` (on a host, with an
+  `agentgarage` workspace): it takes a sha on main and hands it to the
+  garage, which builds, tests and releases it (`hosting/CLAUDE.md`,
+  "Inception"). It refuses unless the mention that woke the turn is a
+  human's: not dev, grug, or `garage`, who posts "@dev running <sha>" on
+  boot. So the boot notice wakes dev to check its work but can't deploy.
 - The system prompt is `dev.md`, embedded.
-- *Not built yet:* the room → task mapping lives in memory, so a restart
-  starts a fresh task in a room.
+- Its database (`DevConfig.Store`, a `turso.Store` in serve) keeps the
+  sessions and, under `dev/rooms/<room>`, each room's workspace, task id and
+  last message read. After a restart, a mention in the room resumes the task:
+  `workspace.Resume` finds the worktree, the session is loaded and bound to
+  it. If either is gone, dev says so and starts a new task.
 
 ## grug
 
@@ -35,11 +44,13 @@ the room it was mentioned in.
   after that a human takes over. Only a review mentions anyone; "no link",
   "already reviewed" and errors are plain messages that wake nobody. dev's
   prompt says not to mention `@grug` itself; re-opening the PR does it.
-- *Not built yet:* what grug reviewed lives in memory, so a restart may
-  review a head again. PRs from forks aren't fetched.
+- What grug reviewed lives in its own database (`agents/grug.db`), under
+  `grug/reviewed/<pr url>`, so a restart doesn't review a head again.
+- *Not built yet:* PRs from forks aren't fetched.
 
 ## Rules
 
 - Tests drive an agent through the chatroom with `testutils.ScriptedModel`,
   a local bare repo and a fake `gh`, and assert on what lands in the room and
-  the remote.
+  the remote. A restart is a chatroom and a store on files, closed and
+  opened again.

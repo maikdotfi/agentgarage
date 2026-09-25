@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -31,6 +32,7 @@ type GrugConfig struct {
 	Chat       *chatroom.Service
 	Model      model.ModelClient
 	ModelID    string
+	Store      Store // review sessions, and which heads grug reviewed
 	Workspaces []*workspace.Workspace
 }
 
@@ -39,9 +41,10 @@ type GrugConfig struct {
 // asked in the room. Each head is reviewed once, and a PR at most maxReviews
 // times, so grug and dev can't keep waking each other.
 func Grug(cfg GrugConfig) chatroom.Handler {
-	g := &grug{cfg: cfg, reviewed: map[string][]string{}}
+	g := &grug{cfg: cfg}
 	g.agent = agent.New(grugPrompt,
 		agent.WithModel(cfg.Model),
+		agent.WithStore(cfg.Store),
 		agent.WithTools(
 			agent.Adapt(tools.Bash{}),
 			agent.Adapt(tools.ReadFile{}),
@@ -54,10 +57,11 @@ func Grug(cfg GrugConfig) chatroom.Handler {
 type grug struct {
 	cfg   GrugConfig
 	agent *agent.Agent
-	// reviewed is the heads reviewed per PR URL. Mentions are handled one at
-	// a time, so it needs no lock.
-	reviewed map[string][]string
 }
+
+// reviewedKey is where grug's database keeps the heads of a PR it reviewed,
+// oldest first.
+func reviewedKey(url string) string { return "grug/reviewed/" + url }
 
 var prLink = regexp.MustCompile(`https?://\S+/pull/\d+`)
 
@@ -79,7 +83,13 @@ func (g *grug) wake(ctx context.Context, m chatroom.Message) {
 		g.say(ctx, m.Room, "grug can't see "+url+": "+err.Error())
 		return
 	}
-	heads := g.reviewed[pr.URL]
+	var heads []string
+	if raw, found, err := g.cfg.Store.Get(ctx, reviewedKey(pr.URL)); err != nil {
+		g.say(ctx, m.Room, "grug can't remember "+pr.URL+": "+err.Error())
+		return
+	} else if found {
+		json.Unmarshal(raw, &heads)
+	}
 	switch {
 	case len(heads) > 0 && heads[len(heads)-1] == pr.HeadSHA:
 		g.say(ctx, m.Room, fmt.Sprintf("grug already reviewed %s at %s. push new commits, then ask again.", pr.URL, short(pr.HeadSHA)))
@@ -94,7 +104,10 @@ func (g *grug) wake(ctx context.Context, m chatroom.Message) {
 		g.say(ctx, m.Room, "grug stopped reviewing "+pr.URL+": "+err.Error())
 		return
 	}
-	g.reviewed[pr.URL] = append(heads, pr.HeadSHA)
+	raw, _ := json.Marshal(append(heads, pr.HeadSHA))
+	if err := g.cfg.Store.Put(ctx, reviewedKey(pr.URL), raw); err != nil {
+		slog.Error("grug: remembering the review", "pr", pr.URL, "err", err)
+	}
 	if err := ws.Comment(ctx, pr.URL, fmt.Sprintf("grug review of %s:\n\n%s", short(pr.HeadSHA), review)); err != nil {
 		g.say(ctx, m.Room, "grug couldn't post on "+pr.URL+": "+err.Error())
 	}

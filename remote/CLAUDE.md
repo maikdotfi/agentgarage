@@ -27,6 +27,11 @@ build and one release. The code lives here and is kept apart from host code.
 - `garage remote chat -room R` prints what's waiting in `mail/to-laptop/`,
   mails each stdin line to R, and checks again every 10s until stdin ends.
   Its cursors are `~/.garage/mail.json`.
+- `garage remote release`, run at the root of a clean checkout of this repo,
+  builds `./cmd/garage` for linux/amd64, uploads it as
+  `releases/<HEAD sha>/garage` signed with the laptop's key, and CAS-moves
+  `releases/current`; the host installs it on its next poll. `-point SHA`
+  moves `releases/current` back to an earlier release instead: the rollback.
 
 *Postponed* (`.plans/ROADMAP.md`, Later): the laptop side of the door
 (STUN, the signed "open the door" request, WireGuard).

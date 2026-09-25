@@ -273,15 +273,16 @@ func (s *setup) keys(ctx context.Context) error {
 	return nil
 }
 
-// binary installs the given binary as a release named by its content, and
-// points serve-current at it.
-func (s *setup) binary(context.Context) error {
+// binary installs the given binary as a release named by its content and
+// makes it current. The releases are the garage user's, so serve can install
+// the next one itself; serve-current, which systemd runs, stays root's.
+func (s *setup) binary(ctx context.Context) error {
 	raw, err := os.ReadFile(s.cfg.Binary)
 	if err != nil {
 		return err
 	}
-	rel := filepath.Join("releases", sha(raw)[:12], "garage")
-	dest := s.path(filepath.Join("/opt/garage", rel))
+	name := sha(raw)[:12]
+	dest := s.path(filepath.Join(Releases, name, "garage"))
 	if _, err := os.Stat(dest); errors.Is(err, os.ErrNotExist) {
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 			return err
@@ -293,30 +294,22 @@ func (s *setup) binary(context.Context) error {
 			return err
 		}
 	}
-	if s.binaryChanged, err = s.link(rel, "/opt/garage/serve-current"); err != nil {
+	if s.binaryChanged, err = link(name+"/garage", s.path(Releases+"/current")); err != nil {
 		return err
 	}
 	if s.binaryChanged {
-		s.say("serve-current is now %s", rel)
+		s.say("releases/current is now %s", name)
 	}
-	_, err = s.link("/opt/garage/serve-current", "/usr/local/bin/garage")
+	if _, err := s.Run(ctx, "chown", "-R", "garage:garage", s.path(Releases)); err != nil {
+		return err
+	}
+	moved, err := link("releases/current", s.path("/opt/garage/serve-current"))
+	if err != nil {
+		return err
+	}
+	s.binaryChanged = s.binaryChanged || moved
+	_, err = link("/opt/garage/serve-current", s.path("/usr/local/bin/garage"))
 	return err
-}
-
-// link points the symlink at path to target, atomically, and says whether it
-// had to.
-func (s *setup) link(target, path string) (bool, error) {
-	if got, err := os.Readlink(s.path(path)); err == nil && got == target {
-		return false, nil
-	}
-	if err := os.MkdirAll(filepath.Dir(s.path(path)), 0o755); err != nil {
-		return false, err
-	}
-	os.Remove(s.path(path) + ".new")
-	if err := os.Symlink(target, s.path(path)+".new"); err != nil {
-		return false, err
-	}
-	return true, os.Rename(s.path(path)+".new", s.path(path))
 }
 
 func (s *setup) units(ctx context.Context) error {

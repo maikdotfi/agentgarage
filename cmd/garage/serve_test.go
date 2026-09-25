@@ -20,6 +20,7 @@ import (
 	"github.com/maikdotfi/agentgarage/bucket/secrets"
 	"github.com/maikdotfi/agentgarage/chatroom"
 	"github.com/maikdotfi/agentgarage/hosting"
+	"github.com/maikdotfi/agentgarage/metaharness/model"
 )
 
 // origin is a local bare repo with one commit on main.
@@ -49,10 +50,12 @@ func origin(t *testing.T) string {
 // garageHost is a host home made by garage init -master, trusting a laptop
 // that shares its fake bucket.
 type garageHost struct {
-	home   string
-	ui     string // where serve's chat UI listens, once it runs
-	store  *bucket.Fake
-	laptop *bucket.Caller
+	home     string
+	ui       string // where serve's chat UI listens, once it runs
+	store    *bucket.Fake
+	laptop   *bucket.Caller
+	releases string            // serve's releases dir; "" is off a host
+	model    model.ModelClient // nil is the configured provider
 }
 
 func newHost(t *testing.T) *garageHost {
@@ -93,6 +96,19 @@ func (h *garageHost) configure(t *testing.T) {
 // for its socket.
 func (h *garageHost) serve(t *testing.T) {
 	t.Helper()
+	done, stop := h.start(t)
+	t.Cleanup(func() {
+		stop()
+		if err := <-done; err != nil {
+			t.Errorf("serve: %v", err)
+		}
+	})
+}
+
+// start runs garage serve on the fake bucket, and waits for its socket. The
+// caller stops it and reads how it ended.
+func (h *garageHost) start(t *testing.T) (<-chan error, context.CancelFunc) {
+	t.Helper()
 	ui, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -101,26 +117,24 @@ func (h *garageHost) serve(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		done <- runServe(ctx, serveEnv{home: h.home, keys: h.home, store: h.store, ui: ui, mailEvery: 10 * time.Millisecond})
+		done <- runServe(ctx, serveEnv{home: h.home, keys: h.home, store: h.store, ui: ui, mailEvery: 10 * time.Millisecond,
+			releases: h.releases, model: h.model})
 	}()
-	t.Cleanup(func() {
-		cancel()
-		if err := <-done; err != nil {
-			t.Errorf("serve: %v", err)
-		}
-	})
 	sock := filepath.Join(h.home, socketFile)
 	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 		select {
 		case err := <-done:
+			cancel()
 			t.Fatalf("serve stopped: %v", err)
 		default:
 		}
 		if _, err := socketClient(sock).read(ctx, "garage", 0, ""); err == nil {
-			return
+			return done, cancel
 		}
 	}
+	cancel()
 	t.Fatal("serve never answered on its socket")
+	return nil, nil
 }
 
 // waitFor reads room over the socket until a message has text.
@@ -202,7 +216,7 @@ func TestBackupSnapshotsEveryDatabase(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errOut)
 	}
-	for _, owner := range []string{"garage/chatroom", "agents/dev"} {
+	for _, owner := range []string{"garage/chatroom", "agents/dev", "agents/grug"} {
 		if _, err := h.laptop.Get(context.Background(), owner+"/db/latest"); err != nil {
 			t.Errorf("%s: %v", owner, err)
 		}

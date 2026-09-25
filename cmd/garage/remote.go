@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -18,12 +19,15 @@ import (
 	"github.com/maikdotfi/agentgarage/bucket"
 	"github.com/maikdotfi/agentgarage/bucket/mail"
 	"github.com/maikdotfi/agentgarage/bucket/secrets"
+	"github.com/maikdotfi/agentgarage/hosting"
 )
 
 const remoteUsage = `usage:
   garage remote secret NAME             write a secret; the value is read from stdin
   garage remote config                  write what garage serve runs; JSON on stdin
-  garage remote chat [-room R] [-as A]  talk to the host through bucket mail`
+  garage remote chat [-room R] [-as A]  talk to the host through bucket mail
+  garage remote release [-point SHA]    build this checkout for the host and release it,
+                                        or point the host back at an earlier release`
 
 // remote is the laptop side: it reaches the host only through the bucket.
 func remote(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -36,6 +40,8 @@ func remote(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return remoteSecret(args[1:], stdin, stderr)
 	case "chat":
 		return remoteChatCmd(args[1:], stdin, stdout, stderr)
+	case "release":
+		return remoteReleaseCmd(args[1:], stdout, stderr)
 	case "config":
 		b, err := openBucket(keysDir(), nil, map[string]bucket.Limit{"config": {Every: time.Second, Burst: 5}})
 		if err == nil {
@@ -104,6 +110,71 @@ func remoteChatCmd(args []string, stdin io.Reader, stdout, stderr io.Writer) int
 		return 1
 	}
 	return 0
+}
+
+func remoteReleaseCmd(args []string, stdout, stderr io.Writer) int {
+	fs := flag.NewFlagSet("remote release", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	point := fs.String("point", "", "point releases/current at this earlier release instead of building one")
+	if err := fs.Parse(args); err != nil || fs.NArg() > 0 {
+		fmt.Fprintln(stderr, remoteUsage)
+		return 2
+	}
+	b, err := openBucket(keysDir(), nil, map[string]bucket.Limit{"release": {Every: time.Second, Burst: 5}})
+	if err != nil {
+		fmt.Fprintln(stderr, "garage remote:", err)
+		return 1
+	}
+	ctx := context.Background()
+	sha := *point
+	if sha != "" {
+		err = hosting.Point(ctx, b.Caller("release"), sha)
+	} else {
+		sha, err = remoteRelease(ctx, b.Caller("release"), ".")
+	}
+	if err != nil {
+		fmt.Fprintln(stderr, "garage remote:", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "releases/current is %s; the host installs it on its next poll and restarts\n", sha)
+	return 0
+}
+
+// remoteRelease builds the commit checked out in repo as a linux/amd64
+// garage and releases it through the bucket, named by that commit.
+// Uncommitted work is refused, so the name means what it says.
+func remoteRelease(ctx context.Context, c *bucket.Caller, repo string) (string, error) {
+	git := func(args ...string) (string, error) {
+		out, err := exec.CommandContext(ctx, "git", append([]string{"-C", repo}, args...)...).Output()
+		return strings.TrimSpace(string(out)), err
+	}
+	status, err := git("status", "--porcelain")
+	if err != nil {
+		return "", fmt.Errorf("%s is not a git checkout: %w", repo, err)
+	}
+	if status != "" {
+		return "", fmt.Errorf("commit your work first, a release is named by its commit:\n%s", status)
+	}
+	sha, err := git("rev-parse", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	dir, err := os.MkdirTemp("", "garage-release")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(dir)
+	build := exec.CommandContext(ctx, "go", "build", "-o", filepath.Join(dir, "garage"), "./cmd/garage")
+	build.Dir = repo
+	build.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=0")
+	if out, err := build.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("go build: %w\n%s", err, out)
+	}
+	bin, err := os.ReadFile(filepath.Join(dir, "garage"))
+	if err != nil {
+		return "", err
+	}
+	return sha, hosting.Publish(ctx, c, sha, bin)
 }
 
 // remoteConfig checks a config the way garage serve will read it, and only

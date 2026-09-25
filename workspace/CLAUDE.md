@@ -38,6 +38,14 @@ noun; there is no other name for it anywhere in the code.
 - `Task.OpenPR` refuses uncommitted or empty work, pushes the branch (never
   forced) and runs `gh pr create`, unless the branch has a PR open already;
   then the push is the update. Tests point `Config.GH` at a fake script.
+- `Resume(id)` is a task `Start` made earlier, perhaps before a restart: its
+  worktree and branch as they were left. `Merged(sha)` is the full sha of a
+  commit on the remote's default branch, or an error; only a hex sha will
+  do, so a stale local `main` can't stand in for it.
+- A `Workspace` is shared by every agent. Its own commands (`run`: fetch,
+  worktree add and remove, push, gh) hold one lock per workspace, because git
+  refuses rather than waits on its lock files. Commands in a sandbox don't
+  take it; an agent's own git is its business.
 - For reviews: `PullRequest(url)` is `gh pr view`, `Checkout(id, pr)` is a
   worktree detached at the PR's head (its `remote.origin.pushurl` is set to
   something unpushable through `GIT_CONFIG_*`, so pushes fail), and

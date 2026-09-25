@@ -33,9 +33,9 @@ range `garage setup -ssh-from` allows.
   `garage` user, installs git, gh and ca-certificates, installs the pinned
   `mise` release as `/usr/local/bin/mise` (sha256 checked; bump `Mise` in
   `setup.go` to upgrade), makes whichever keys
-  are missing, installs itself as `/opt/garage/releases/<content sha>/garage`,
-  writes the units in `units/`, makes sshd key-only (`sshd -t` first) and
-  loads `nftables.conf` (`nft -c` first), which opens 22 and the UI's 8080 to
+  are missing, installs itself as `/opt/garage/releases/<content sha>/garage`
+  and makes it `releases/current` (below), writes the units in `units/`,
+  makes sshd key-only (`sshd -t` first) and loads `nftables.conf` (`nft -c` first), which opens 22 and the UI's 8080 to
   the `-ssh-from` range only. The port is fixed there; a `serve -http` on
   another port stays closed. Only a changed unit or binary
   restarts anything.
@@ -54,20 +54,44 @@ range `garage setup -ssh-from` allows.
   laptop has to pin a new host key.
 - There is no Go or Node on the host itself. Workspaces install what their
   repo pins through `mise` (`workspace/CLAUDE.md`).
-- *Not built yet:* the door unit and releases through the bucket.
+- Releases (`release.go`), laid out so the garage user can install the next
+  one itself and nothing more:
+  ```
+  /opt/garage/                  root's, 0755
+    serve-current -> releases/current   root's link; systemd runs it; never moves
+    releases/                   the garage user's (setup chowns it)
+      current -> <sha>/garage   what serve runs: setup and the poller move it
+      <sha>/garage              one per release, kept for rolling back
+      seen                      the last releases/current the poller acted on
+      deployed                  {sha, room} from a deploy, until the boot after it
+  ```
+  **Rerun `garage setup` once** on a host set up before this: it chowns
+  `releases/`, adds `releases/current`, and points `serve-current` at it.
+- *Not built yet:* the door unit.
 
 ## Deploys: through the bucket, not gitops
 
 Humans release from the laptop; agents release from the host (next section).
 Both end in the same place.
 
-1. `garage remote release` runs `go build` for linux/amd64, signs the
-   result, uploads `releases/<sha>/garage`, and CAS-updates
-   `releases/current`.
-2. The host's poller GETs `releases/current` on the same tick as mail, so
-   there's no extra poller. On a new sha it downloads, verifies the
-   signature, swaps the binary, and lets systemd restart it.
-3. Rollback means pointing `releases/current` back at an older sha.
+1. `garage remote release`, in a clean checkout, runs `go build` for
+   linux/amd64 (`CGO_ENABLED=0`), uploads `releases/<commit sha>/garage`
+   signed with the laptop's key (which the host trusts through
+   `trusted.keys`), and CAS-updates `releases/current` (its body is the sha).
+   `hosting.Publish` is the shared half.
+2. The host's poller (`hosting.Update`, in `serve`) GETs `releases/current`
+   on the same tick as mail, so there's no extra poller, and acts only when
+   the pointer has moved since its last look (`seen`); its very first look
+   only remembers. It downloads the binary, which the bucket client verifies,
+   checks that `<new> help` runs here, flips `releases/current`, and once no
+   agent is mid-turn `serve` exits 0; `Restart=always` brings it back up in
+   the new binary after `RestartSec`. A release that fails is tried once and
+   logged, then left alone until the next.
+3. Rollback: `garage remote release -point <older sha>` moves the pointer
+   back; it checks the release is in the bucket, and the host, which still
+   has that binary on disk, downloads nothing. Or by
+   hand on the host: `garage setup` with the old binary. Setup doesn't touch
+   `seen`, so the poller leaves it be until the next release.
 
 ## Inception: agents deploy the garage they run in
 
@@ -76,24 +100,31 @@ wrote itself. It does this with a `deploy` tool, and the garage does the
 risky parts:
 
 1. The agent names a commit sha on `main`. Merging to `main` is the gate, and
-   that stays a human's call until we choose otherwise.
-2. The garage builds that sha itself in a fresh worktree (`go test ./...`, then
-   `go build`). It never trusts a binary an agent hands it.
-3. It signs the result with the host's release key, uploads it to
-   `releases/<sha>/`, CAS-updates `releases/current`, and restarts
-   `garage serve` into it.
+   that stays a human's call until we choose otherwise. Only a human's
+   mention may deploy (`agents/CLAUDE.md`), so no notice can start another.
+2. The garage builds that sha itself (`hosting.Deploy`) in a fresh detached
+   worktree of the `agentgarage` workspace, through `mise exec`: `go test
+   ./...`, then a linux/amd64 `go build ./cmd/garage`. It never trusts a
+   binary an agent hands it, and refuses the sha it runs already.
+3. It signs the result with the host's key (`signing.key`; there is no
+   separate release key), uploads it to `releases/<sha>/`, CAS-updates
+   `releases/current`, and the poller in the same process takes it from
+   there, as for a laptop release.
 4. **`garage door` is the watchdog** (once it exists; until then there is
    none, and rolling back means `garage setup` with the old binary). If the new `serve` isn't healthy within
    a minute, the door points `serve` back at the previous release and posts
    to `#garage`.
 5. The deploying agent's session lives in its database, so it survives the
-   restart. On boot, the garage posts "running <sha>" to the room, which wakes
-   the agent to check its own work.
+   restart. Deploy leaves `{sha, room}` in `releases/deployed`; on boot,
+   after its first look at the bucket, `serve` posts "@dev running <sha>" to
+   that room as `garage`, once, which wakes dev to check its own work.
 
-Binaries live at `/opt/garage/releases/<sha>/garage`. `serve` runs whatever
-the `serve-current` symlink points to, and `door` runs `door-current`. **Agents
-only ever move `serve-current`.** The door is updated by a human, so a bad
-release can't take away the way back in.
+Binaries live at `/opt/garage/releases/<sha>/garage`. `serve` runs
+`serve-current`, which is root's and points at the garage user's
+`releases/current`; `door` will run `door-current`. **Agents only ever move
+`releases/current`.** The door is updated by a human, so a bad release can't
+take away the way back in: its binary must live outside `releases/`, which
+the garage user can write.
 
 ## The door: WireGuard, bootstrapped through bucket mail
 

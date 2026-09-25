@@ -56,8 +56,8 @@ talks to S3, and it enforces a budget so nothing can spam it.
 Anyone with bucket write access could swap a public key stored there for their
 own. So these are set on each machine, never read from the bucket:
 
-- the host's list of which signing keys it accepts (the laptop's, plus its own
-  release key for releases it built itself)
+- the host's list of which signing keys it accepts (the laptop's; releases it
+  built itself are signed with its own key, which it always trusts)
 - the laptop's list of which signing keys it accepts (the host's)
 - the master key's public recipient the laptop encrypts secrets to
 
@@ -72,8 +72,8 @@ config/garage.json             what garage serve runs: model, git identity, work
 secrets/<name>.age             age-encrypted to the master key; nothing else is
 mail/to-host/<seq>             laptop -> host, one chat message
 mail/to-laptop/<seq>           host -> laptop, same
-releases/<sha>/garage          signed linux binaries
-releases/current               pointer: which sha the host should run
+releases/<sha>/garage          signed linux binaries, named by their commit
+releases/current               pointer: which sha the host should run; CAS only
 ```
 
 - A restore GETs `latest` and then that day's snapshot: two Class B reads per
