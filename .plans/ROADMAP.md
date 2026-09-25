@@ -32,7 +32,7 @@ door goes last, and nothing depends on it.
   range the firewall allows.
 - No setup scripts, Ansible, or cloud-init. `garage setup` is the only thing
   that configures a host.
-- No agents beyond dev and grug until Milestone C.
+- No agents beyond dev and grug until Milestone E.
 - No sandboxing for now. Agents run in their workspace's local folders, a
   worktree and a minimal environment as the `garage` user, which metaharness
   already supports. That is good enough; sandboxing waits (see Later).
@@ -142,17 +142,10 @@ bucket (or over SSH), and agents open PRs here. The garage now works on itself.
 and mail, and a backup. `-ssh-from` now takes a range. No agent task has run
 there yet, so no workspace has a `tools/` yet.
 
-## Phase 3: a team that builds the garage
+## Phase 3: chat with dev from the browser
 
-The target: open the chat UI and start coding on agentgarage with the first
-agents right away. Two agents, both working only on this repo:
-
-- **dev**, the coding agent (built). It takes a task in a room and opens a PR.
-- **grug**, the code reviewer. It reviews every PR with the `grug-review`
-  skill (as in `metaharness/examples/code-review`). One reviewer, not two.
-
-And they can ship what they build: once a human merges, the garage builds and
-deploys itself, so the agents update the garage they run in.
+The target: open the chat UI and start coding on agentgarage right away with
+**dev**, the coding agent (built), working only on this repo.
 
 10. **Toolchains on the host.** Step 9 for real: the first task on the host
     fills `<workspace>/tools` and `cache/` through the pinned `mise`, and
@@ -160,25 +153,46 @@ deploys itself, so the agents update the garage they run in.
     turns up (PATH, trust, permissions of `/var/lib/garage`), so that every
     tool an agent uses lives in the workspace's `tools/`, not on the host.
 11. **The chat UI, served by `garage serve`.** Plain HTTP on `0.0.0.0:8080`,
-    no HTTPS, no login: the host is on a private network. Rooms, messages,
-    and a box to mention an agent. It talks to the chatroom in the same
-    process, so no mail and no remote. `garage setup` opens 8080 to the same
-    range as SSH, so on a public VPS it would still be private. Assets are
-    `embed`ed. Small enough to write by hand, since agents need it to be
-    reachable at all.
+    no HTTPS, no login: the host is on a private network. As small as it can
+    be: a room list, a room page, and a form to post. New messages show up
+    through a plain htmx poll; no SSE yet. It talks to the chatroom in the
+    same process, so no mail and no remote. `garage setup` opens 8080 to the
+    same range as SSH, so on a public VPS it would still be private. Small
+    enough to write by hand, since agents need it to be reachable at all.
+
+**Milestone C:** open `http://<host>:8080`, "@dev do X in agentgarage", and a
+PR appears, built and tested with the Go that mise put in `tools/`.
+
+## Phase 4: grug reviews
+
+The garage's second agent: **grug**, the code reviewer. One reviewer, not two.
+
 12. **grug, the reviewer.** A second agent in `agents/`. When dev opens a PR
     it mentions grug in the room; grug reads the diff in its own worktree,
-    reviews it with `grug-review`, and posts the review on the PR and in the
-    room. dev answers the findings; a human merges.
-13. **Releases and inception.** Releases through the bucket, the agent
-    `deploy` tool (the garage builds the merged sha itself: `go test ./...`,
-    then `go build`), and versioned binaries with `serve-current`. dev's room
-    → task mapping moves from memory into its database first, so a deploy
-    doesn't lose work in flight. Until the door exists there is no watchdog:
-    rolling back means `garage setup` with the old binary, by hand.
+    reviews it with the `grug-review` skill (as in
+    `metaharness/examples/code-review`), and posts the review on the PR and in
+    the room. dev answers the findings; a human merges.
+13. **Live rooms.** SSE replaces the poll, now that two agents talking makes
+    it worth having.
 
-**Milestone C:** in the UI, "@dev do X", grug reviews the PR, a human merges,
-and the garage deploys it and restarts into it without losing the room.
+**Milestone D:** every PR dev opens gets a grug review, and dev answers it.
+
+## Phase 5: the garage ships itself
+
+Once a human merges, the garage builds and deploys itself, so the agents
+update the garage they run in. The riskiest phase, so it goes last, and dev
+and grug help build it.
+
+14. **dev remembers its tasks.** The room → task mapping moves from memory
+    into dev's database, so a restart doesn't lose work in flight.
+15. **Releases and inception.** Releases through the bucket, the agent
+    `deploy` tool (the garage builds the merged sha itself: `go test ./...`,
+    then `go build`), and versioned binaries with `serve-current`. Until the
+    door exists there is no watchdog: rolling back means `garage setup` with
+    the old binary, by hand.
+
+**Milestone E:** a human merges, and the garage builds, deploys and restarts
+into it without losing the room.
 
 ## Later
 
@@ -193,7 +207,7 @@ Postponed, not dropped. Each comes back when something real asks for it.
   us out. Needed once the garage leaves the LAN.
 - **More agents.** Testing grug, then monitoring grug (watches the bucket
   budget, backups and releases, and posts to `#garage`). No new agent before
-  dev and grug ship through Milestone C.
+  dev and grug ship through Milestone E.
 - **The remote over mail.** Mail stays as built (chat only). The UI doesn't
   use it; it comes back with the door, for reaching the garage from outside.
 
