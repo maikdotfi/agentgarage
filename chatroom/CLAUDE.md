@@ -9,24 +9,22 @@ goes to and from the bucket.
 - A package inside `garage serve`, with its own SQLite database. That database
   is the record: rooms, messages, and delivery state.
 - Agents reach it through tools (`post`, `read room`), in process. Other
-  processes on the host (`garage door`, the CLI) use a small HTTP API on a
-  unix socket. The remote uses the same API over the WireGuard tunnel.
+  processes on the host (the CLI) use a small HTTP API on a unix socket. The
+  UI (`ui/`) runs inside `garage serve` and uses the chatroom in process.
 - **Agent ↔ agent never touches R2.** The service writes the message and wakes
   the mentioned agent itself.
 
-## Humans, through the bucket
+## Humans, from outside the network
 
 Mail is experimental (`bucket/CLAUDE.md`): as small as it can be until agents
-run on their own and we know what they need to say.
+run on their own and we know what they need to say. On the private network
+humans use the UI or `garage chat` over SSH instead, and neither needs mail.
 
 - **Inbound**: the host's single poller runs in `garage serve` until the door
   exists. It GETs the next `mail/to-host/<seq>` every 10s and posts each chat
   message to its room.
 - **Outbound**: a final reply to a human is written as one
   `mail/to-laptop/<seq>` message, never token streams or tool traces.
-- `garage chat` over SSH needs no mail at all.
-- When the door is open, the remote reads rooms live over the tunnel (SSE),
-  and the bucket isn't in the loop.
 - XMPP stays optional: `metaharness/bridge/xmpp` connecting outbound to mirror
   a room to a phone.
 

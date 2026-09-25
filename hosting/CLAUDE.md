@@ -1,26 +1,29 @@
 # hosting
 
-One cheap VPS runs the `garage` binary. It is **fully private**: nothing
-listens on the public internet. The host reaches out (to R2, model APIs,
-GitHub); nothing reaches in except through a tunnel it agreed to open.
+One host runs the `garage` binary, today a Debian box on a private LAN. It
+is **private**: nothing listens on the public internet. The host reaches out
+(to R2, model APIs, GitHub); only SSH and the UI reach in, and only from the
+range `garage setup -ssh-from` allows.
 
 ## Shape
 
 - One binary, several subcommands, one systemd unit each:
-  - `garage serve`: agents, chatroom, and the HTTP API the remote uses.
-    Changes often. It renders no UI; that's the remote's job.
-  - `garage door`: the WireGuard tunnel and SSH access. Changes rarely, so an
-    app crash or a bad release never locks us out. Once it exists, the host's
-    single bucket poller moves here from `serve`.
-- No Docker on the host. Agents run in the workspace's own sandbox, a
+  - `garage serve`: agents, the chatroom, and the chat UI (`ui/`) on
+    `0.0.0.0:8080`, plain HTTP. Changes often.
+  - `garage door`, *postponed* while the host is on a private LAN: the
+    WireGuard tunnel and SSH access. Changes rarely, so an app crash or a bad
+    release never locks us out. Once it exists, the host's single bucket
+    poller moves here from `serve`.
+- No Docker on the host. Agents run in the workspace's local folders, a
   worktree and a minimal environment, as the unprivileged `garage` user; that
-  user is the only boundary. Sandboxing gets re-thought once agents run here
-  (`.plans/ROADMAP.md`), and plugs in behind `agent.Sandbox`.
+  user is the only boundary, and that's good enough for now. Sandboxing is
+  postponed (`.plans/ROADMAP.md`, Later) and plugs in behind `agent.Sandbox`.
 - `garage backup`, run daily by a systemd timer, takes a consistent snapshot
   of every SQLite database (agents' and the garage's; never a raw copy of a
   live file) and uploads it under that owner's prefix. `garage restore` is
   the other half; test it.
-- Break-glass access is the VPS provider's web console. Never remove it.
+- Break-glass access is the machine's own console (on a VPS, the provider's
+  web console). Never remove it.
 
 ## How it works today
 
@@ -77,7 +80,8 @@ risky parts:
 3. It signs the result with the host's release key, uploads it to
    `releases/<sha>/`, CAS-updates `releases/current`, and restarts
    `garage serve` into it.
-4. **`garage door` is the watchdog.** If the new `serve` isn't healthy within
+4. **`garage door` is the watchdog** (once it exists; until then there is
+   none, and rolling back means `garage setup` with the old binary). If the new `serve` isn't healthy within
    a minute, the door points `serve` back at the previous release and posts
    to `#garage`.
 5. The deploying agent's session lives in its database, so it survives the
@@ -90,6 +94,8 @@ only ever move `serve-current`.** The door is updated by a human, so a bad
 release can't take away the way back in.
 
 ## The door: WireGuard, bootstrapped through bucket mail
+
+*Postponed* while the host is on a private LAN; needed once it leaves.
 
 Mail is experimental and carries only chat for now (`bucket/CLAUDE.md`). The
 handshake below is what it has to grow into.
@@ -109,8 +115,9 @@ or Headscale. We know, and we're doing it anyway.
 
 ## Rules
 
-- The host firewall drops all unsolicited inbound traffic. Any exception is
-  opened by the door, is scoped to one IP, and expires.
+- The host firewall drops all unsolicited inbound traffic except SSH and the
+  UI from the range `garage setup` allows. Any other exception is opened by
+  the door, is scoped to one IP, and expires.
 - Databases are local files; the bucket holds their daily snapshots. A dead
   disk loses at most a day, and that's accepted.
 - Host setup is `garage setup`: idempotent Go in this folder, with the

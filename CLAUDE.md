@@ -13,13 +13,15 @@ Complexity is the apex predator. Grug-brained defaults:
   and gets one line of justification in the `STACK.md` of the package that pulls
   it in.
 - **Server side, except the remote.** Everything is deployed on the host,
-  except `remote/`, the one corner a human runs on their laptop.
-- **Monolith, single binary.** One `garage` binary on one VPS. Assets (HTML,
+  the chat UI included, except `remote/`, the one corner a human runs on
+  their laptop.
+- **Monolith, single binary.** One `garage` binary on one host. Assets (HTML,
   CSS, migrations, prompts) are `embed`ed. A second process or service needs a
   reason stronger than "that's how it's usually done".
-- **Private by default.** Nothing listens on the public internet. The R2
-  bucket is the hub: state, releases, backups, and laptop↔host mail live there,
-  signed. See `bucket/CLAUDE.md`.
+- **Private by default.** Nothing listens on the public internet. The host
+  sits on a private network, and SSH and the UI are open only to the range
+  `garage setup` allows. The R2 bucket is the hub: state, releases, backups,
+  and laptop↔host mail live there, signed. See `bucket/CLAUDE.md`.
 - **SQLite files, not database servers.** One SQLite-format file (Turso, as in
   metaharness) per owner: each agent, the chatroom. Snapshots go to the bucket.
 - **No build step outside `go build`.** No npm, no codegen pipelines, no YAML
@@ -44,9 +46,10 @@ Complexity is the apex predator. Grug-brained defaults:
 
 ```
 metaharness/   the agent library; has its own stricter rules
-remote/        the only laptop-side code: `garage remote`, UI, mail, door
+remote/        the only laptop-side code: `garage remote`, mail
 chatroom/      where agents and humans talk to each other
-hosting/       how the garage runs privately on the VPS, deploys, the door
+ui/            the chat UI that `garage serve` serves on :8080
+hosting/       how the garage runs privately on its host, deploys
 bucket/        R2 as the platform: layout, signing, conditional writes
 workspace/     git repos, branches, gh, and secrets that agents work in
 agents/        the garage's own agents, such as dev

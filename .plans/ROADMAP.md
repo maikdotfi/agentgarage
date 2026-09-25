@@ -18,22 +18,24 @@ door goes last, and nothing depends on it.
 
 - An agent opens a real PR on this repo as early as possible, even from a
   laptop.
-- The garage then moves to the VPS, and humans reach it only through the
-  bucket.
+- The garage then moves to its own host. On a private LAN, humans reach it
+  directly, over SSH and the UI; the bucket holds state, secrets and backups.
 - Agents deploy the garage they run in (see `hosting/CLAUDE.md`, "Inception").
 - Other software projects become just more workspaces.
 
 ## Non-Goals
 
 - No UI before Milestone B. `garage chat` and `garage remote chat` are enough.
-- No door before agents can deploy the garage. Until then, SSH stays open for
-  key-based login from one IP, as a deliberate stopgap.
+- No door for now. The host sits on a private LAN, and SSH and the UI are open
+  to the LAN range only (`garage setup -ssh-from <range>`).
+- No HTTPS or login on the UI. It is plain HTTP, reachable only from the
+  range the firewall allows.
 - No setup scripts, Ansible, or cloud-init. `garage setup` is the only thing
   that configures a host.
-- No second agent before the first one has shipped a PR.
-- No Docker sandboxes. On the VPS, agents run in the workspace's own
-  sandbox: a worktree and a minimal environment, isolating nothing. We
-  re-think sandboxing once agents are running there.
+- No agents beyond dev and grug until Milestone C.
+- No sandboxing for now. Agents run in their workspace's local folders, a
+  worktree and a minimal environment as the `garage` user, which metaharness
+  already supports. That is good enough; sandboxing waits (see Later).
 
 ## Phase 1: laptop, one agent, one PR
 
@@ -136,24 +138,64 @@ exec` checked by hand with the workspace's env against this repo's
 **Milestone B:** the garage runs on the VPS, humans chat with it through the
 bucket (or over SSH), and agents open PRs here. The garage now works on itself.
 
-## Phase 3: agents help build the rest
+*Done* on a Debian box on the LAN (2026-09-25): setup, serve, chat over SSH
+and mail, and a backup. `-ssh-from` now takes a range. No agent task has run
+there yet, so no workspace has a `tools/` yet.
 
-10. **Re-think sandboxing.** Decide from what running agents actually do on
-   the host: something of our own, or nothing more than the `garage` user.
-   Whatever we choose plugs in behind `agent.Sandbox`. If it's a library
-   sandbox, `agent.Command` needs an env first (see `workspace/CLAUDE.md`).
-11. **Releases and inception.** Releases through the bucket, the agent `deploy`
-    tool (the garage builds the sha itself), versioned binaries with
-    `serve-current` / `door-current`, and the door as watchdog with automatic
-    rollback.
-12. **Club grug.** Reviews every PR with `grug-review`: the first check on
-    agent-written code.
-13. **Testing grug, then monitoring grug.** Monitoring watches the bucket
-    budget, backups, and releases, and posts to `#garage`.
-14. **The remote UI.** Mail-backed first, live over the tunnel later. A good
-    task for the dev agent.
-15. **The door.** WireGuard bootstrapped through mail. A human writes this
-    one; it's the piece that can lock us out. Then SSH closes.
+## Phase 3: a team that builds the garage
+
+The target: open the chat UI and start coding on agentgarage with the first
+agents right away. Two agents, both working only on this repo:
+
+- **dev**, the coding agent (built). It takes a task in a room and opens a PR.
+- **grug**, the code reviewer. It reviews every PR with the `grug-review`
+  skill (as in `metaharness/examples/code-review`). One reviewer, not two.
+
+And they can ship what they build: once a human merges, the garage builds and
+deploys itself, so the agents update the garage they run in.
+
+10. **Toolchains on the host.** Step 9 for real: the first task on the host
+    fills `<workspace>/tools` and `cache/` through the pinned `mise`, and
+    `go test ./...` runs through `mise exec`. Fix whatever the real host
+    turns up (PATH, trust, permissions of `/var/lib/garage`), so that every
+    tool an agent uses lives in the workspace's `tools/`, not on the host.
+11. **The chat UI, served by `garage serve`.** Plain HTTP on `0.0.0.0:8080`,
+    no HTTPS, no login: the host is on a private network. Rooms, messages,
+    and a box to mention an agent. It talks to the chatroom in the same
+    process, so no mail and no remote. `garage setup` opens 8080 to the same
+    range as SSH, so on a public VPS it would still be private. Assets are
+    `embed`ed. Small enough to write by hand, since agents need it to be
+    reachable at all.
+12. **grug, the reviewer.** A second agent in `agents/`. When dev opens a PR
+    it mentions grug in the room; grug reads the diff in its own worktree,
+    reviews it with `grug-review`, and posts the review on the PR and in the
+    room. dev answers the findings; a human merges.
+13. **Releases and inception.** Releases through the bucket, the agent
+    `deploy` tool (the garage builds the merged sha itself: `go test ./...`,
+    then `go build`), and versioned binaries with `serve-current`. dev's room
+    → task mapping moves from memory into its database first, so a deploy
+    doesn't lose work in flight. Until the door exists there is no watchdog:
+    rolling back means `garage setup` with the old binary, by hand.
+
+**Milestone C:** in the UI, "@dev do X", grug reviews the PR, a human merges,
+and the garage deploys it and restarts into it without losing the room.
+
+## Later
+
+Postponed, not dropped. Each comes back when something real asks for it.
+
+- **Sandboxing.** Decide from what agents actually do on the host: something
+  of our own, or nothing more than the `garage` user. Whatever we choose
+  plugs in behind `agent.Sandbox`. If it's a library sandbox, `agent.Command`
+  needs an env first (see `workspace/CLAUDE.md`).
+- **The door.** WireGuard bootstrapped through mail, and the watchdog with
+  automatic rollback. A human writes this one; it's the piece that can lock
+  us out. Needed once the garage leaves the LAN.
+- **More agents.** Testing grug, then monitoring grug (watches the bucket
+  budget, backups and releases, and posts to `#garage`). No new agent before
+  dev and grug ship through Milestone C.
+- **The remote over mail.** Mail stays as built (chat only). The UI doesn't
+  use it; it comes back with the door, for reaching the garage from outside.
 
 ## First tasks for agents
 
@@ -168,7 +210,7 @@ garage fails before it matters. For example: "add bucket operation counters to
   `sqlite3`.
 - ~~How does the dev agent get Go 1.26 on Debian?~~ Per-workspace toolchains
   through `mise` (step 9). Open: postinstall scripts run arbitrary code as the
-  `garage` user; that's for the sandboxing rethink.
+  `garage` user; accepted until sandboxing comes back.
 - Does the `metaharness/bridge/xmpp` mirror earn its place, or does the remote
-  cover phones well enough?
+  cover phones well enough? The UI on the LAN covers phones at home.
 - When, if ever, can an agent deploy without a human merging to `main` first?

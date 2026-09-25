@@ -1,7 +1,8 @@
 # bucket
 
-The R2 bucket is the garage's platform. The host and the laptop never talk to
-each other directly by default: both talk only to the bucket. All config,
+The R2 bucket is the garage's platform. The laptop's tools never talk to the
+host directly: they talk only to the bucket. (On the host's private network a
+human can also use the UI or SSH, which bypass the bucket.) All config,
 secrets, durable state, backups, releases, and mail between laptop and host
 live here.
 
