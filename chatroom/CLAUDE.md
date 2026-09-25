@@ -41,6 +41,7 @@ humans use the UI or `garage chat` over SSH instead, and neither needs mail.
 - `Service` owns `chatroom.db` (one `messages` table). `Post` appends and
   wakes every mentioned, joined agent except the author; `Read` and `Wait`
   (a long poll) return what came after a message ID.
+- The UI's live stream is `Wait` in a loop; nothing else notifies anyone.
 - `Rooms` is the latest message of every room, newest first (the UI's room
   list). A room exists once something is posted in it.
 - `Join(name, handler)` gives an agent its own inbox; its handler runs one

@@ -169,6 +169,30 @@ func TestServeShowsTheChatUIOverHTTP(t *testing.T) {
 	h.waitFor(t, "fix", "hello from the browser")
 }
 
+func TestServeStopsPromptlyWithARoomStreamOpen(t *testing.T) {
+	var stopping time.Time
+	var stream io.Closer
+	t.Cleanup(func() { // runs last, after serve has stopped
+		if d := time.Since(stopping); d > 2*time.Second {
+			t.Errorf("serve took %v to stop with a stream open", d)
+		}
+		stream.Close()
+	})
+	h := newHost(t)
+	h.configure(t)
+	h.serve(t)
+	t.Cleanup(func() { stopping = time.Now() }) // runs first, before serve stops
+
+	resp, err := http.Get(h.ui + "/rooms/fix/events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream = resp.Body
+	if resp.Header.Get("Content-Type") != "text/event-stream" {
+		t.Fatalf("content type %q", resp.Header.Get("Content-Type"))
+	}
+}
+
 func TestBackupSnapshotsEveryDatabase(t *testing.T) {
 	h := newHost(t)
 	h.configure(t)

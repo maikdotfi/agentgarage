@@ -1,6 +1,7 @@
 package ui_test
 
 import (
+	"bufio"
 	"context"
 	"io"
 	"net/http"
@@ -177,26 +178,143 @@ func TestPostingWithoutANameOrTextIsRefused(t *testing.T) {
 	}
 }
 
-func TestPollingShowsOnlyNewMessages(t *testing.T) {
+func TestRoomPageListensForMessagesAfterTheLastOneShown(t *testing.T) {
 	chat, h := garage(t)
 	seen := post(t, chat, "a", "mike", "already on the page")
+
 	_, page := get(t, h, "/rooms/a")
-	mustContain(t, page, `/rooms/a/messages?after=`+strconv.FormatInt(seen.ID, 10))
 
-	poll := "/rooms/a/messages?after=" + strconv.FormatInt(seen.ID, 10)
-	if code, _ := get(t, h, poll); code != http.StatusNoContent {
-		t.Errorf("nothing new: status %d, want 204", code)
+	mustContain(t, page, `data-events="/rooms/a/events?after=`+strconv.FormatInt(seen.ID, 10)+`"`, "EventSource")
+	if strings.Contains(page, "hx-trigger") {
+		t.Error("the room page still polls")
 	}
+}
 
-	next := post(t, chat, "a", "dev", "a reply")
-	code, body := get(t, h, poll)
+// event is one Server-Sent Event: its id and its data lines joined.
+type event struct{ id, data string }
 
-	if code != http.StatusOK {
-		t.Fatalf("status %d", code)
+// stream opens path on srv as an event stream, with Last-Event-ID if given.
+func stream(t *testing.T, srv *httptest.Server, path, lastID string) *bufio.Reader {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+path, nil)
+	if lastID != "" {
+		req.Header.Set("Last-Event-ID", lastID)
 	}
-	mustContain(t, body, "a reply", "dev", `/rooms/a/messages?after=`+strconv.FormatInt(next.ID, 10))
-	if strings.Contains(body, "already on the page") || strings.Contains(body, "<html") {
-		t.Errorf("poll returns more than the new messages:\n%s", body)
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "text/event-stream" {
+		t.Fatalf("status %d, content type %q", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	return bufio.NewReader(resp.Body)
+}
+
+// next reads the next event the way a browser does: CR, LF and CRLF all end
+// a line, and lines that aren't a field it knows are dropped.
+func next(t *testing.T, r *bufio.Reader) event {
+	t.Helper()
+	got := make(chan event, 1)
+	go func() {
+		var ev event
+		var data []string
+		for {
+			line, err := r.ReadString('\n')
+			if err != nil {
+				return
+			}
+			for i, part := range strings.Split(strings.TrimSuffix(line, "\n"), "\r") {
+				if i == 0 && part == "" && len(data) > 0 {
+					ev.data = strings.Join(data, "\n")
+					got <- ev
+					return
+				}
+				if v, ok := strings.CutPrefix(part, "data: "); ok {
+					data = append(data, v)
+				} else if v, ok := strings.CutPrefix(part, "id: "); ok {
+					ev.id = v
+				}
+			}
+		}
+	}()
+	select {
+	case ev := <-got:
+		return ev
+	case <-time.After(5 * time.Second):
+		t.Fatal("no event arrived")
+		return event{}
+	}
+}
+
+func TestNewMessagesArriveAsEventsRenderedLikeThePage(t *testing.T) {
+	chat, h := garage(t)
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	seen := post(t, chat, "a", "mike", "already on the page")
+	events := stream(t, srv, "/rooms/a/events?after="+strconv.FormatInt(seen.ID, 10), "")
+
+	post(t, chat, "b", "mike", "another room")
+	reply := post(t, chat, "a", "dev", "a <b>reply</b>")
+	ev := next(t, events)
+
+	if ev.id != strconv.FormatInt(reply.ID, 10) {
+		t.Errorf("event id = %q, want the message's %d", ev.id, reply.ID)
+	}
+	mustContain(t, ev.data, `id="m`+ev.id+`"`, "dev", "a &lt;b&gt;reply&lt;/b&gt;")
+	if strings.Contains(ev.data, "already on the page") || strings.Contains(ev.data, "another room") {
+		t.Errorf("event carries more than the new message:\n%s", ev.data)
+	}
+}
+
+func TestAReconnectResumesAfterTheLastEventID(t *testing.T) {
+	chat, h := garage(t)
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	first := post(t, chat, "a", "mike", "one")
+	post(t, chat, "a", "mike", "two")
+	post(t, chat, "a", "mike", "three")
+
+	events := stream(t, srv, "/rooms/a/events?after=0", strconv.FormatInt(first.ID, 10))
+
+	if ev := next(t, events); !strings.Contains(ev.data, "two") {
+		t.Errorf("first event after a reconnect = %q, want two", ev.data)
+	}
+	if ev := next(t, events); !strings.Contains(ev.data, "three") {
+		t.Errorf("second event = %q, want three", ev.data)
+	}
+}
+
+func TestAMultiLineMessageArrivesWhole(t *testing.T) {
+	chat, h := garage(t)
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	events := stream(t, srv, "/rooms/a/events", "")
+
+	post(t, chat, "a", "mike", "one\r\ntwo\rthree\nfour")
+
+	mustContain(t, next(t, events).data, "one", "two", "three", "four")
+}
+
+func TestAStreamEndsWhenTheBrowserGoesAway(t *testing.T) {
+	_, h := garage(t)
+	srv := httptest.NewServer(h)
+	ctx, cancel := context.WithCancel(context.Background())
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/rooms/a/events", nil)
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	cancel()
+
+	closed := make(chan struct{})
+	go func() { srv.Close(); close(closed) }() // Close waits for every request to finish
+	select {
+	case <-closed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the stream kept running after the browser left")
 	}
 }
 

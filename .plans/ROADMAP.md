@@ -186,6 +186,19 @@ The garage's second agent: **grug**, the code reviewer. One reviewer, not two.
 13. **Live rooms.** SSE replaces the poll, now that two agents talking makes
     it worth having.
 
+*Built:* both, locally. grug (`agents/grug.go`) is joined next to dev in
+`garage serve`: dev's `open_pull_request` mentions @grug with the link, grug
+reviews the PR head in a detached worktree of its own with the
+`grug-review` skill from metaharness, comments on the PR through gh and
+answers @dev in the room. It reviews each head once and a PR at most three
+times, so the two can't wake each other forever; calling
+`open_pull_request` again pushes to the open PR and asks for another round.
+The UI streams rooms over SSE from `chatroom.Wait` with `Last-Event-ID`
+resume, through a few lines of inline `EventSource`; the poll is gone.
+Tested with scripted models, a local bare repo and a fake gh, and run
+against a local UI with curl and headless Chrome (a dev→grug→dev exchange,
+a boosted post, a resume). Not yet run with a real model or real GitHub.
+
 **Milestone D:** every PR dev opens gets a grug review, and dev answers it.
 
 ## Phase 5: the garage ships itself

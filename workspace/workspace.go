@@ -8,6 +8,7 @@ package workspace
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -93,7 +94,7 @@ func (ws *Workspace) Start(ctx context.Context, id string) (*Task, error) {
 	if _, err := ws.run(ctx, ws.repo, "git", "fetch", "-q", "origin"); err != nil {
 		return nil, err
 	}
-	t := &Task{ws: ws, id: id, branch: "garage/" + id, dir: filepath.Join(ws.cfg.Root, ws.cfg.Name, "tasks", id)}
+	t := &Task{ws: ws, id: id, branch: "garage/" + id, dir: filepath.Join(ws.cfg.Root, ws.cfg.Name, "tasks", id), env: ws.env}
 	if _, err := ws.run(ctx, ws.repo, "git", "worktree", "add", "-q", "-b", t.branch, t.dir, "origin/"+ws.base); err != nil {
 		return nil, err
 	}
@@ -103,12 +104,66 @@ func (ws *Workspace) Start(ctx context.Context, id string) (*Task, error) {
 	return t, nil
 }
 
+// PullRequest is a PR on the workspace's remote, as gh sees it.
+type PullRequest struct {
+	URL     string `json:"url"`
+	State   string `json:"state"` // OPEN, CLOSED or MERGED
+	Head    string `json:"headRefName"`
+	HeadSHA string `json:"headRefOid"`
+	Base    string `json:"baseRefName"`
+}
+
+// PullRequest looks up a PR by its URL.
+func (ws *Workspace) PullRequest(ctx context.Context, url string) (PullRequest, error) {
+	return ws.pullRequest(ctx, ws.repo, url)
+}
+
+// pullRequest is gh pr view of ref (a URL, number or branch) from dir.
+func (ws *Workspace) pullRequest(ctx context.Context, dir, ref string) (PullRequest, error) {
+	out, err := ws.run(ctx, dir, ws.cfg.GH, "pr", "view", ref, "--json", "url,state,headRefName,headRefOid,baseRefName")
+	if err != nil {
+		return PullRequest{}, err
+	}
+	var pr PullRequest
+	if err := json.Unmarshal([]byte(out), &pr); err != nil {
+		return PullRequest{}, fmt.Errorf("gh pr view %s: %w", ref, err)
+	}
+	return pr, nil
+}
+
+// Checkout gives a task a look at a PR: its own worktree, detached at the PR's
+// head, with the repo's stack installed. Pushes from it fail.
+func (ws *Workspace) Checkout(ctx context.Context, id string, pr PullRequest) (*Task, error) {
+	if !plainName.MatchString(id) {
+		return nil, fmt.Errorf("workspace: %q is not a plain task id", id)
+	}
+	if _, err := ws.run(ctx, ws.repo, "git", "fetch", "-q", "origin"); err != nil {
+		return nil, err
+	}
+	t := &Task{ws: ws, id: id, branch: pr.Head, dir: filepath.Join(ws.cfg.Root, ws.cfg.Name, "tasks", id),
+		env: environ(ws.cfg, "remote.origin.pushurl", "read-only://checkouts-do-not-push")}
+	if _, err := ws.run(ctx, ws.repo, "git", "worktree", "add", "-q", "--detach", t.dir, pr.HeadSHA); err != nil {
+		return nil, err
+	}
+	if _, err := ws.run(ctx, t.dir, ws.cfg.Mise, "install"); err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+// Comment posts body as a comment on the PR at url.
+func (ws *Workspace) Comment(ctx context.Context, url, body string) error {
+	_, err := ws.run(ctx, ws.repo, ws.cfg.GH, "pr", "comment", url, "--body", body)
+	return err
+}
+
 // Task is one piece of work: a worktree on its own branch.
 type Task struct {
 	ws     *Workspace
 	id     string
 	branch string
 	dir    string
+	env    []string
 }
 
 func (t *Task) Branch() string { return t.branch }
@@ -119,7 +174,8 @@ func (t *Task) Dir() string    { return t.dir }
 func (t *Task) Sandbox() agent.Sandbox { return sandbox{t} }
 
 // OpenPR pushes the task's branch and opens a PR against the default branch,
-// returning its URL. Everything must be committed first.
+// returning its URL. If the branch has a PR open already, the push updates it.
+// Everything must be committed first.
 func (t *Task) OpenPR(ctx context.Context, title, body string) (string, error) {
 	status, err := t.ws.run(ctx, t.dir, "git", "status", "--porcelain")
 	if err != nil {
@@ -137,6 +193,9 @@ func (t *Task) OpenPR(ctx context.Context, title, body string) (string, error) {
 	}
 	if _, err := t.ws.run(ctx, t.dir, "git", "push", "-q", "origin", "HEAD:refs/heads/"+t.branch); err != nil {
 		return "", err
+	}
+	if pr, err := t.ws.pullRequest(ctx, t.dir, t.branch); err == nil && pr.State == "OPEN" {
+		return pr.URL, nil
 	}
 	out, err := t.ws.run(ctx, t.dir, t.ws.cfg.GH, "pr", "create",
 		"--head", t.branch, "--base", t.ws.base, "--title", title, "--body", body)
@@ -175,10 +234,10 @@ func (ws *Workspace) redact(s string) string {
 }
 
 // environ is everything a workspace's commands see: enough of the host to run
-// tools, the shared tools and caches, the commit identity and the credentials.
-// Nothing else of the garage's environment, such as its bucket token, gets
-// through.
-func environ(cfg Config) []string {
+// tools, the shared tools and caches, the commit identity, the credentials and
+// any git config given as key, value pairs. Nothing else of the garage's
+// environment, such as its bucket token, gets through.
+func environ(cfg Config, gitConfig ...string) []string {
 	root := filepath.Join(cfg.Root, cfg.Name)
 	cache := filepath.Join(root, "cache")
 	var env []string
@@ -206,11 +265,13 @@ func environ(cfg Config) []string {
 	if _, ok := cfg.Env["GH_TOKEN"]; ok {
 		// git over HTTPS reads the token from the environment, never from a
 		// command line or a file.
-		env = append(env,
-			"GIT_CONFIG_COUNT=1",
-			"GIT_CONFIG_KEY_0=credential.helper",
-			`GIT_CONFIG_VALUE_0=!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f`,
-		)
+		gitConfig = append(gitConfig, "credential.helper", `!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f`)
+	}
+	if n := len(gitConfig) / 2; n > 0 {
+		env = append(env, fmt.Sprintf("GIT_CONFIG_COUNT=%d", n))
+		for i := range n {
+			env = append(env, fmt.Sprintf("GIT_CONFIG_KEY_%d=%s", i, gitConfig[2*i]), fmt.Sprintf("GIT_CONFIG_VALUE_%d=%s", i, gitConfig[2*i+1]))
+		}
 	}
 	for k, v := range cfg.Env {
 		env = append(env, k+"="+v)
@@ -229,7 +290,7 @@ func (s sandbox) Exec(ctx context.Context, c agent.Command) (agent.ExecResult, e
 	var stdout, stderr bytes.Buffer
 	args := append([]string{"exec", "--", c.Cmd}, c.Args...)
 	cmd := exec.CommandContext(ctx, s.t.ws.cfg.Mise, args...)
-	cmd.Dir, cmd.Env, cmd.Stdout, cmd.Stderr = s.t.dir, s.t.ws.env, &stdout, &stderr
+	cmd.Dir, cmd.Env, cmd.Stdout, cmd.Stderr = s.t.dir, s.t.env, &stdout, &stderr
 	if err := cmd.Run(); err != nil {
 		var exit *exec.ExitError
 		if !errors.As(err, &exit) {

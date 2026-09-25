@@ -28,9 +28,10 @@ func git(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// newWorkspace is a workspace over a local bare repo, with a gh that prints a
-// PR URL and a mise that just runs what it is asked to exec.
-func newWorkspace(t *testing.T, name string) (*workspace.Workspace, string) {
+// newWorkspace is a workspace over a local bare repo, with a fake gh that
+// logs its calls to ghLog, and a mise that just runs what it is asked to exec.
+// The gh opens one PR, and pr view shows it with the head origin has.
+func newWorkspace(t *testing.T, name string) (ws *workspace.Workspace, origin, ghLog string) {
 	t.Helper()
 	dir := t.TempDir()
 	bare := filepath.Join(dir, "origin.git")
@@ -42,8 +43,21 @@ func newWorkspace(t *testing.T, name string) (*workspace.Workspace, string) {
 	git(t, seed, "commit", "-qm", "first")
 	git(t, seed, "push", "-q", "origin", "HEAD:main")
 
-	gh := filepath.Join(dir, "gh")
-	os.WriteFile(gh, []byte("#!/bin/sh\necho https://github.com/example/"+name+"/pull/1\n"), 0o755)
+	gh, ghLog, state := filepath.Join(dir, "gh"), filepath.Join(dir, "gh.log"), filepath.Join(dir, "head")
+	url := "https://github.com/example/" + name + "/pull/1"
+	os.WriteFile(gh, []byte(`#!/bin/sh
+printf '%s\n' "$@" >> `+ghLog+`
+case "$1 $2" in
+"pr create")
+  while [ $# -gt 0 ]; do [ "$1" = --head ] && echo "$2" > `+state+`; shift; done
+  echo `+url+` ;;
+"pr view")
+  [ -f `+state+` ] || { echo 'no pull requests found' >&2; exit 1; }
+  head=$(cat `+state+`)
+  sha=$(git ls-remote origin "refs/heads/$head" | cut -f1)
+  printf '{"url":"`+url+`","state":"OPEN","headRefName":"%s","headRefOid":"%s","baseRefName":"main"}\n' "$head" "$sha" ;;
+esac
+`), 0o755)
 	mise := filepath.Join(dir, "mise")
 	os.WriteFile(mise, []byte("#!/bin/sh\nif [ \"$1\" = exec ]; then shift 2; exec \"$@\"; fi\n"), 0o755)
 	ws, err := workspace.Open(context.Background(), workspace.Config{
@@ -53,7 +67,7 @@ func newWorkspace(t *testing.T, name string) (*workspace.Workspace, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return ws, bare
+	return ws, bare, ghLog
 }
 
 func newChat(t *testing.T) *chatroom.Service {
@@ -97,7 +111,7 @@ func userText(req model.ModelRequest) string {
 }
 
 func TestDevOpensAPRWhenAskedInARoom(t *testing.T) {
-	ws, origin := newWorkspace(t, "demo")
+	ws, origin, _ := newWorkspace(t, "demo")
 	chat := newChat(t)
 	m := &testutils.ScriptedModel{Replies: []model.Message{
 		testutils.AssistantToolCall(t, "1", "bash", map[string]string{"cmd": "echo hi > hello.txt && git add hello.txt && git commit -qm 'add hello'"}),
@@ -130,7 +144,7 @@ func TestDevOpensAPRWhenAskedInARoom(t *testing.T) {
 }
 
 func TestDevContinuesTheSameTaskInTheSameRoom(t *testing.T) {
-	ws, _ := newWorkspace(t, "demo")
+	ws, _, _ := newWorkspace(t, "demo")
 	chat := newChat(t)
 	m := &testutils.ScriptedModel{Replies: []model.Message{
 		testutils.AssistantToolCall(t, "1", "bash", map[string]string{"cmd": "echo one > one.txt"}),
@@ -158,8 +172,8 @@ func TestDevContinuesTheSameTaskInTheSameRoom(t *testing.T) {
 }
 
 func TestDevAsksWhichWorkspaceWhenItCannotTell(t *testing.T) {
-	a, _ := newWorkspace(t, "alpha")
-	b, _ := newWorkspace(t, "beta")
+	a, _, _ := newWorkspace(t, "alpha")
+	b, _, _ := newWorkspace(t, "beta")
 	chat := newChat(t)
 	m := &testutils.ScriptedModel{}
 	chat.Join("dev", agents.Dev(agents.DevConfig{Chat: chat, Model: m, ModelID: "x", Workspaces: []*workspace.Workspace{a, b}}))

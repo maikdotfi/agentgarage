@@ -1,6 +1,7 @@
 // Package ui is the chat UI that garage serve serves over plain HTTP: a room
-// list, a room page and a form to post, rendered on the server, with htmx
-// polling for new messages. It uses the chatroom in process.
+// list, a room page and a form to post, rendered on the server, with new
+// messages streamed to the page as Server-Sent Events. It uses the chatroom in
+// process.
 package ui
 
 import (
@@ -73,7 +74,7 @@ func New(chat *chatroom.Service) (http.Handler, error) {
 	mux.HandleFunc("GET /{$}", s.rooms)
 	mux.HandleFunc("GET /rooms", s.open)
 	mux.HandleFunc("GET /rooms/{room}", s.room)
-	mux.HandleFunc("GET /rooms/{room}/messages", s.poll)
+	mux.HandleFunc("GET /rooms/{room}/events", s.events)
 	mux.HandleFunc("POST /rooms/{room}/messages", s.post)
 	return mux, nil
 }
@@ -93,7 +94,7 @@ var funcs = template.FuncMap{
 
 func roomURL(room string) string { return "/rooms/" + url.PathEscape(room) }
 
-// roomData is what the room page and its poll render.
+// roomData is what the room page renders.
 type roomData struct {
 	Room     string
 	As       string
@@ -132,20 +133,41 @@ func (s *server) room(w http.ResponseWriter, r *http.Request) {
 	s.render(w, http.StatusOK, s.pages["room.html"], "index.html", d)
 }
 
-// poll is the messages after ?after=, as a fragment for htmx to append, or
-// 204 (which htmx leaves alone) when there are none.
-func (s *server) poll(w http.ResponseWriter, r *http.Request) {
+// events streams the room's messages after ?after= as Server-Sent Events,
+// each one the "message" partial with the message's ID as its event ID. A
+// browser reconnecting sends the last ID it saw, and the stream resumes there.
+func (s *server) events(w http.ResponseWriter, r *http.Request) {
+	room := r.PathValue("room")
 	after, _ := strconv.ParseInt(r.FormValue("after"), 10, 64)
-	d, err := s.read(r, after)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	if id, err := strconv.ParseInt(r.Header.Get("Last-Event-ID"), 10, 64); err == nil {
+		after = id
 	}
-	if len(d.Messages) == 0 {
-		w.WriteHeader(http.StatusNoContent)
-		return
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.WriteHeader(http.StatusOK)
+	flush := http.NewResponseController(w).Flush
+	// A line break in the data would end the field, so normalise them the
+	// way an HTML parser would and send each line as its own data field.
+	lines := strings.NewReplacer("\r\n", "\n", "\r", "\n")
+	for flush() == nil {
+		msgs, err := s.chat.Wait(r.Context(), room, after)
+		if err != nil {
+			return // the browser went away, or serve is stopping
+		}
+		for _, m := range msgs {
+			var b strings.Builder
+			if err := s.pages["room.html"].ExecuteTemplate(&b, "message", m); err != nil {
+				slog.Error("ui: render", "template", "message", "err", err)
+				return
+			}
+			fmt.Fprintf(w, "id: %d\n", m.ID)
+			for line := range strings.SplitSeq(strings.TrimSpace(lines.Replace(b.String())), "\n") {
+				fmt.Fprintf(w, "data: %s\n", line)
+			}
+			fmt.Fprint(w, "\n")
+			after = m.ID
+		}
 	}
-	s.render(w, http.StatusOK, s.pages["room.html"], "messages", d)
 }
 
 func (s *server) read(r *http.Request, after int64) (roomData, error) {

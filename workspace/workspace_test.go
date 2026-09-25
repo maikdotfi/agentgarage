@@ -41,13 +41,27 @@ func origin(t *testing.T) string {
 	return bare
 }
 
-// fakeGH is a gh that records its arguments and prints a PR URL.
+// fakeGH is a gh that appends every call's arguments to argsFile, one per
+// line. It opens one PR, and pr view shows it with the head the remote has.
 func fakeGH(t *testing.T) (path, argsFile string) {
 	t.Helper()
 	dir := t.TempDir()
 	argsFile = filepath.Join(dir, "args")
+	state := filepath.Join(dir, "head")
 	path = filepath.Join(dir, "gh")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + argsFile + "\necho https://github.com/example/repo/pull/7\n"
+	script := `#!/bin/sh
+printf '%s\n' "$@" >> ` + argsFile + `
+case "$1 $2" in
+"pr create")
+  while [ $# -gt 0 ]; do [ "$1" = --head ] && echo "$2" > ` + state + `; shift; done
+  echo https://github.com/example/repo/pull/7 ;;
+"pr view")
+  [ -f ` + state + ` ] || { echo 'no pull requests found' >&2; exit 1; }
+  head=$(cat ` + state + `)
+  sha=$(git ls-remote origin "refs/heads/$head" | cut -f1)
+  printf '{"url":"https://github.com/example/repo/pull/7","state":"OPEN","headRefName":"%s","headRefOid":"%s","baseRefName":"main"}\n' "$head" "$sha" ;;
+esac
+`
 	os.WriteFile(path, []byte(script), 0o755)
 	return path, argsFile
 }

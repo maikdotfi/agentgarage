@@ -46,7 +46,7 @@ var serveLimits = map[string]bucket.Limit{
 	"chat-poll": {Every: time.Second, Burst: 20},
 }
 
-// serve runs the chatroom, the dev agent, the mail relay and the chat UI, and
+// serve runs the chatroom, the dev and grug agents, the mail relay and the chat UI, and
 // answers on the unix socket until it is signalled to stop. Its config is in
 // the bucket.
 func serve(args []string, _ io.Reader, _, stderr io.Writer) int {
@@ -155,6 +155,9 @@ func runServe(ctx context.Context, env serveEnv) error {
 	chat.Join(agents.DevName, agents.Dev(agents.DevConfig{
 		Chat: chat, Model: m, ModelID: cfg.Model, Store: turso.New(devDB), Workspaces: workspaces,
 	}))
+	chat.Join(agents.GrugName, agents.Grug(agents.GrugConfig{
+		Chat: chat, Model: m, ModelID: cfg.Model, Workspaces: workspaces,
+	}))
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
@@ -202,7 +205,10 @@ func runServe(ctx context.Context, env serveEnv) error {
 	if err != nil {
 		return err
 	}
-	webSrv := &http.Server{Handler: web, ReadHeaderTimeout: 10 * time.Second}
+	// Requests share serve's context, so stopping ends the rooms' open event
+	// streams instead of waiting on them.
+	webSrv := &http.Server{Handler: web, ReadHeaderTimeout: 10 * time.Second,
+		BaseContext: func(net.Listener) context.Context { return ctx }}
 	wg.Go(func() {
 		if err := webSrv.Serve(env.ui); !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("garage serve: chat UI", "err", err)

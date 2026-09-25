@@ -159,8 +159,6 @@ ol.messages { list-style: none; margin: 0; padding: .4rem 0; }
   min-width: 0;
 }
 
-.poll { height: 0; }
-
 form.post {
   display: grid;
   grid-template-columns: 9rem 1fr auto;

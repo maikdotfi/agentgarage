@@ -75,7 +75,7 @@ func (d *dev) wake(ctx context.Context, m chatroom.Message) {
 	t, ok := d.rooms[m.Room]
 	intro := ""
 	if !ok {
-		ws, question := d.pick(m.Text)
+		ws, question := pick(d.cfg.Workspaces, m.Text)
 		if ws == nil {
 			d.say(ctx, m.Room, question)
 			return
@@ -132,10 +132,10 @@ func (d *dev) wake(ctx context.Context, m chatroom.Message) {
 
 // pick is the workspace a message names, or the only one there is. When it
 // can't tell, it returns the question to ask instead.
-func (d *dev) pick(text string) (*workspace.Workspace, string) {
+func pick(workspaces []*workspace.Workspace, text string) (*workspace.Workspace, string) {
 	var named, all []string
 	var found *workspace.Workspace
-	for _, ws := range d.cfg.Workspaces {
+	for _, ws := range workspaces {
 		all = append(all, ws.Name())
 		if regexp.MustCompile(`\b` + regexp.QuoteMeta(ws.Name()) + `\b`).MatchString(text) {
 			named = append(named, ws.Name())
@@ -146,7 +146,7 @@ func (d *dev) pick(text string) (*workspace.Workspace, string) {
 	case len(named) == 1:
 		return found, ""
 	case len(named) == 0 && len(all) == 1:
-		return d.cfg.Workspaces[0], ""
+		return workspaces[0], ""
 	case len(all) == 0:
 		return nil, "I have no workspaces to work in."
 	}
@@ -168,7 +168,7 @@ func (d *dev) openPRTool() agent.Tool {
 	return agent.AdaptFunc(
 		agent.ToolMeta{
 			Name:        "open_pull_request",
-			Description: "Push this task's branch and open a pull request for review. Commit everything first.",
+			Description: "Push this task's branch and open a pull request for review, or update the one already open. Either way grug is asked to review it. Commit everything first.",
 		},
 		func(ctx context.Context, ec *agent.ExecCtx, args openPRArgs) (agent.ToolResult, error) {
 			t := d.bySession[ec.Session.ID]
@@ -176,7 +176,7 @@ func (d *dev) openPRTool() agent.Tool {
 			if err != nil {
 				return agent.ToolResult{Content: err.Error(), IsError: true}, nil
 			}
-			d.say(ctx, t.room, "Opened a PR: "+url)
+			d.say(ctx, t.room, "PR for review: "+url+"\n\n@"+GrugName+", please review it.")
 			return agent.ToolResult{Content: url}, nil
 		},
 	)

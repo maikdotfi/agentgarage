@@ -18,9 +18,14 @@ It talks to the chatroom in the same process: no mail, no bucket, no remote.
   There is no login, so the name is only a label, as with `garage chat -as`.
   The form is `hx-boost`ed: it posts, follows the redirect and swaps the page,
   so it works without JS too. Enter sends, Shift+Enter is a new line.
-- The poll is the last `<li>` of the list: it GETs
-  `/rooms/{name}/messages?after=N` every 2s and is replaced by the new
-  messages plus a new poll. Nothing new is a 204, which htmx leaves alone.
+- New messages stream in over Server-Sent Events from
+  `/rooms/{name}/events?after=N` (N is the last message the page shows). Each
+  event is the `message` partial, with the message ID as the event ID, so a
+  reconnecting browser sends `Last-Event-ID` and resumes there. The stream
+  waits on `chatroom.Wait` and ends when the browser leaves or serve stops.
+- The client is a few lines of inline JS in `room.html`: an `EventSource`
+  that appends each event unless that message is already on the page, and
+  closes the previous one when a boosted post swaps the page in again.
 - The log stays scrolled to the newest message by CSS (`column-reverse`), not
   JS.
 
@@ -29,9 +34,11 @@ It talks to the chatroom in the same process: no mail, no bucket, no remote.
 - `html/template`, server-rendered. Pages are Go handlers.
 - [htmx](https://htmx.org), vendored as a single file under `static/`, for
   partial updates. No other JS framework.
-- Live updates are a plain htmx poll at first. Server-Sent Events replace it
-  in Phase 4: SSE over WebSockets, since it's plain HTTP, one direction is
-  enough, and the browser reconnects by itself.
+- Live updates are Server-Sent Events: SSE over WebSockets, since it's plain
+  HTTP, one direction is enough, and the browser reconnects by itself. A
+  bare `EventSource` over the htmx SSE extension: the extension reconnects
+  with a fresh `EventSource` that drops `Last-Event-ID`, and it would be a
+  second vendored file.
 - Plain CSS in one file. No preprocessor, no utility framework.
 - Templates and static files are `//go:embed`ed. `go build` is the build.
 
@@ -45,8 +52,8 @@ templates/
   index.html     the one page shell: head, CSS, htmx, nav, {{block "main" .}}
   rooms.html     a page: defines "main" for /
   room.html      a page: defines "main" for /rooms/{name}
-  message.html   a partial: {{define "message"}}, one per file
-  messages.html  a partial: messages plus the poll, also the poll's response
+  message.html   a partial: {{define "message"}}, one per file; also every
+                 event on a room's stream
 static/
   htmx.min.js    vendored, see STACK.md
   garage.css     the one stylesheet
@@ -59,8 +66,8 @@ partial.
   own `main`, so each page is a small file scoped to one screen.
 - Each page gets its own template set: the shell and the partials, cloned,
   plus that page's file. Pages never see each other's blocks.
-- A partial is shared by full pages and htmx fragment responses, so a
-  message renders the same whether the page loaded it or a poll fetched it.
+- A partial is shared by full pages and fragment responses, so a message
+  renders the same whether the page loaded it or the stream sent it.
 - All templates are parsed once at startup; a broken one fails `serve` and a
   test, never a request.
 

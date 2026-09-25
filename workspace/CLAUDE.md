@@ -36,7 +36,12 @@ noun; there is no other name for it anywhere in the code.
   `GARAGE_TEST_MISE=1 go test ./workspace` runs the real mise on PATH
   against a clone of this repo (it downloads Go).
 - `Task.OpenPR` refuses uncommitted or empty work, pushes the branch (never
-  forced) and runs `gh pr create`. Tests point `Config.GH` at a fake script.
+  forced) and runs `gh pr create`, unless the branch has a PR open already;
+  then the push is the update. Tests point `Config.GH` at a fake script.
+- For reviews: `PullRequest(url)` is `gh pr view`, `Checkout(id, pr)` is a
+  worktree detached at the PR's head (its `remote.origin.pushurl` is set to
+  something unpushable through `GIT_CONFIG_*`, so pushes fail), and
+  `Comment(url, body)` is `gh pr comment`.
 - git over HTTPS gets `GH_TOKEN` through a credential helper set by
   `GIT_CONFIG_*` env vars, never a command line or a file.
 - Friction for metaharness: `agent.Command` has no env, so the library's
