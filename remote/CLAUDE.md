@@ -33,7 +33,7 @@ build and one release. The code lives here and is kept apart from host code.
   `releases/current`; the host installs it on its next poll. `-point SHA`
   moves `releases/current` back to an earlier release instead: the rollback.
 
-*Postponed* (`.plans/ROADMAP.md`, Later): the laptop side of the door
+*Postponed* (`.plans/FOUNDATION.md`, Later): the laptop side of the door
 (STUN, the signed "open the door" request, WireGuard).
 
 ## Rules

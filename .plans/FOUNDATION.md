@@ -1,4 +1,11 @@
-# Garage Roadmap
+# Garage Foundation
+
+*Done, and kept for reference.* This was the roadmap from an empty repo to
+Milestone E, all reached on the LAN host on 2026-09-26: dev opened PRs from
+the chat UI, grug reviewed them, and dev deployed a merged PR, which the
+garage tested, built, released and restarted into by itself. What
+comes next lives in `OBSERVABILITY.md`. The Later and Open Questions sections
+below are still the list of postponed work.
 
 ## Direction
 

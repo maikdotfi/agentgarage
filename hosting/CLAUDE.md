@@ -17,7 +17,7 @@ range `garage setup -ssh-from` allows.
 - No Docker on the host. Agents run in the workspace's local folders, a
   worktree and a minimal environment, as the unprivileged `garage` user; that
   user is the only boundary, and that's good enough for now. Sandboxing is
-  postponed (`.plans/ROADMAP.md`, Later) and plugs in behind `agent.Sandbox`.
+  postponed (`.plans/FOUNDATION.md`, Later) and plugs in behind `agent.Sandbox`.
 - `garage backup`, run daily by a systemd timer, takes a consistent snapshot
   of every SQLite database (agents' and the garage's; never a raw copy of a
   live file) and uploads it under that owner's prefix. `garage restore` is
