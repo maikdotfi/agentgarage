@@ -1,0 +1,22 @@
+{{define "title"}}{{.Session.ID}} · {{.Agent}} · garage{{end}}
+{{define "crumb"}}<span class="sep">/</span><a href="/agents">agents</a><span class="sep">/</span><a href="/agents/{{.Agent}}">{{.Agent}}</a><span class="sep">/</span><span class="here">{{.Session.ID}}</span>{{end}}
+{{define "main"}}
+<div class="sessionhead">
+  <span class="model">{{.Session.Model}}</span>
+  <span class="status status-{{.Session.Status}}">{{.Session.Status}}</span>
+  {{if .Room}}<a href="{{roomURL .Room}}">room {{.Room}}</a>{{end}}
+  <span class="tokens">{{.Session.Usage.TotalTokens}} tokens</span>
+  {{if .NoAnswer}}<span class="flag">ended without an answer</span>{{end}}
+</div>
+<ol class="transcript">
+{{range .Turns}}
+  <li class="t-{{.Role}}">
+    <div class="meta"><span class="author">{{.Role}}</span></div>
+    {{if .Text}}<div class="text">{{.Text}}</div>{{end}}
+    {{if .Reasoning}}<details class="reasoning"><summary>reasoning</summary><div class="text">{{.Reasoning}}</div></details>{{end}}
+    {{range .Calls}}<div class="toolcall"><span class="name">{{.Name}}</span> <code>{{.Input}}</code></div>{{end}}
+    {{range .Results}}<div class="toolresult{{if .Error}} err{{end}}"><pre>{{.Text}}</pre></div>{{end}}
+  </li>
+{{end}}
+</ol>
+{{end}}

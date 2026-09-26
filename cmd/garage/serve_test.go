@@ -147,7 +147,7 @@ func (h *garageHost) waitFor(t *testing.T, room, text string) {
 	for ctx.Err() == nil {
 		msgs, _ := c.read(ctx, room, last, "1s")
 		for _, m := range msgs {
-			if m.Text == text {
+			if m.Text == text || strings.HasPrefix(m.Text, text) {
 				return
 			}
 			last = m.ID
@@ -181,6 +181,64 @@ func TestServeShowsTheChatUIOverHTTP(t *testing.T) {
 		t.Errorf("status %d, want the room with the new message:\n%s", resp.StatusCode, body)
 	}
 	h.waitFor(t, "fix", "hello from the browser")
+}
+
+// The observability pages: an agent's session shows on the agents page, joined
+// to its room, with the turn's tool calls in the transcript.
+func TestServeServesTheAgentsPages(t *testing.T) {
+	endpoint, got := fakeEndpoint(t)
+	t.Setenv("GARAGE_MODEL_URL", endpoint)
+	t.Setenv("GARAGE_MODEL_KEY", "ANTHROPIC_API_KEY")
+	t.Setenv("GARAGE_DEV_MODEL", "fake-model")
+	h := newHost(t)
+	h.configure(t)
+	h.serve(t)
+
+	page := func(path string) string {
+		resp, err := http.Get(h.ui + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return string(body)
+	}
+
+	// Ask dev something; the model endpoint refuses, so dev's turn fails and
+	// its session is saved with that error.
+	if err := socketClient(filepath.Join(h.home, socketFile)).post(context.Background(), "obs", "mike", "@dev hello"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-got:
+	case <-time.After(10 * time.Second):
+		t.Fatal("dev never called the model")
+	}
+	h.waitFor(t, "obs", "I stopped on an error: ")
+
+	agents := page("/agents")
+	if !strings.Contains(agents, `href="/agents/dev"`) || !strings.Contains(agents, "fake-model") {
+		t.Errorf("/agents does not show dev on its model:\n%s", agents)
+	}
+	agentPage := page("/agents/dev")
+	if !strings.Contains(agentPage, `href="/rooms/obs"`) {
+		t.Errorf("dev's page does not join the obs room to its session:\n%s", agentPage)
+	}
+	var sessionURL string
+	if i := strings.Index(agentPage, `href="/agents/dev/sessions/`); i >= 0 {
+		// the attribute runs from its opening quote to the next one
+		start := i + len(`href="`)
+		if end := strings.IndexByte(agentPage[start:], '"'); end > 0 {
+			sessionURL = agentPage[start : start+end]
+		}
+	}
+	if sessionURL == "" {
+		t.Fatalf("dev's page does not link its session:\n%s", agentPage)
+	}
+	session := page(sessionURL)
+	if !strings.Contains(session, "@dev hello") || !strings.Contains(session, "failed") {
+		t.Errorf("the session page does not show the turn and its end:\n%s", session)
+	}
 }
 
 func TestServeStopsPromptlyWithARoomStreamOpen(t *testing.T) {

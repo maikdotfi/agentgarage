@@ -171,6 +171,52 @@ form.post {
 form.post input { font-family: var(--mono); font-size: 13px; }
 form.post textarea { resize: vertical; min-height: 2.6rem; max-height: 40vh; font-family: var(--mono); font-size: 13px; }
 
+/* The agents pages. */
+
+nav .spacer { flex: 1; }
+
+.sessionhead {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: .5rem .9rem;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--dim);
+}
+.sessionhead .status-active { color: var(--accent); font-weight: 600; }
+.sessionhead .flag {
+  color: var(--accent);
+  font-weight: 600;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 0 .3rem;
+}
+
+ol.transcript { list-style: none; margin: 0; padding: .4rem 0; overflow-y: auto; }
+.transcript li { padding: .35rem .9rem; border-bottom: 1px solid transparent; }
+.transcript li:hover { background: var(--panel); }
+.transcript .meta { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
+.transcript .text { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--mono); font-size: 13px; }
+.transcript details.reasoning { margin: .2rem 0; }
+.transcript details.reasoning summary {
+  cursor: pointer; font: 600 11px var(--mono); text-transform: uppercase;
+  letter-spacing: .06em; color: var(--dim); width: max-content; padding: .1rem 0;
+}
+.transcript details.reasoning .text { color: var(--dim); }
+.transcript .toolcall { font-family: var(--mono); font-size: 12px; margin: .15rem 0; }
+.transcript .toolcall .name { font-weight: 600; }
+.transcript .toolresult { margin: .15rem 0; }
+.transcript .toolresult pre {
+  margin: 0; padding: .3rem .5rem; border-left: 2px solid var(--line);
+  background: var(--panel);
+  font-family: var(--mono); font-size: 12px;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  max-height: 14rem; overflow-y: auto;
+}
+.transcript .toolresult.err pre { border-left-color: var(--accent); }
+
 @media (max-width: 40rem) {
   .message { grid-template-columns: 1fr; gap: .1rem; }
   .message .meta { justify-content: flex-start; }

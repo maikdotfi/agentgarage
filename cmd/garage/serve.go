@@ -206,21 +206,24 @@ func runServe(ctx context.Context, env serveEnv) error {
 		return err
 	}
 	defer chat.Close()
-	// busy counts the agents mid-turn, so a restart waits for them.
+	// busy counts the agents mid-turn, so a restart waits for them, and says
+	// who and where, for the pages.
 	var busy atomic.Int64
-	counted := func(h chatroom.Handler) chatroom.Handler {
+	devBusy, grugBusy := &ui.Busy{}, &ui.Busy{}
+	counted := func(h chatroom.Handler, b *ui.Busy) chatroom.Handler {
 		return func(ctx context.Context, m chatroom.Message) {
 			busy.Add(1)
-			defer busy.Add(-1)
+			b.Start(m.Room)
+			defer func() { b.End(); busy.Add(-1) }()
 			h(ctx, m)
 		}
 	}
 	chat.Join(agents.DevName, counted(agents.Dev(agents.DevConfig{
 		Chat: chat, Model: devModel, ModelID: devID, Store: turso.New(devDB), Workspaces: workspaces, Deploy: deploy,
-	})))
+	}), devBusy))
 	chat.Join(agents.GrugName, counted(agents.Grug(agents.GrugConfig{
 		Chat: chat, Model: grugModel, ModelID: grugID, Store: turso.New(grugDB), Workspaces: workspaces,
-	})))
+	}), grugBusy))
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
@@ -281,7 +284,10 @@ func runServe(ctx context.Context, env serveEnv) error {
 		fmt.Fprintln(w, strings.Join(written, "\n"))
 	})
 
-	web, err := ui.New(chat)
+	web, err := ui.New(chat,
+		ui.Agent{Name: agents.DevName, Model: devID, Store: turso.New(devDB), Busy: devBusy},
+		ui.Agent{Name: agents.GrugName, Model: grugID, Store: turso.New(grugDB), Busy: grugBusy},
+	)
 	if err != nil {
 		return err
 	}

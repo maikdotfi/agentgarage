@@ -1,0 +1,19 @@
+{{define "title"}}agents · garage{{end}}
+{{define "crumb"}}<span class="sep">/</span><span class="here">agents</span>{{end}}
+{{define "main"}}
+<table class="rooms">
+  <thead><tr><th>agent</th><th>model</th><th>rooms</th><th>sessions</th><th>tokens</th><th class="time">status</th></tr></thead>
+  <tbody>
+  {{range .}}
+    <tr>
+      <td class="room"><a href="/agents/{{.Name}}">{{.Name}}</a></td>
+      <td class="latest">{{.Model}}</td>
+      <td>{{range $room, $id := .Rooms}}<a href="{{roomURL $room}}">{{$room}}</a> {{end}}</td>
+      <td>{{len .Sessions}} {{if eq (len .Sessions) 1}}session{{else}}sessions{{end}}</td>
+      <td>{{.Tokens}} tokens</td>
+      <td class="time">{{if .WorkingRoom}}working in <a href="{{roomURL .WorkingRoom}}">{{.WorkingRoom}}</a> since {{when .WorkingSince}}{{else if .Working}}mid-turn{{else}}idle{{end}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}

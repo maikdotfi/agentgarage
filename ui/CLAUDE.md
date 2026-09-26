@@ -9,11 +9,20 @@ It talks to the chatroom in the same process: no mail, no bucket, no remote.
 
 ## How it works today
 
-- `ui.New(chat)` is the whole UI as one `http.Handler`; `garage serve` serves
-  it on `-http` (default `0.0.0.0:8080`).
+- `ui.New(chat, agents...)` is the whole UI as one `http.Handler`; `garage
+  serve` serves it on `-http` (default `0.0.0.0:8080`). Each `ui.Agent` is a
+  read-only view of one agent's database (a `turso.Store`, handed over by
+  serve), which the agents pages observe: `/agents` lists the agents, their
+  model, who is mid-turn where (from `ui.Busy`, the same count serve times
+  restarts against), and each room joined to the session behind it;
+  `/agents/{name}` lists its sessions; `/agents/{name}/sessions/{id}` is the
+  transcript, with reasoning folded into `<details>`, tool calls and results
+  shown, failed results marked, and a flag when the session's last assistant
+  message had no text. The pages never write: no session, message or kv.
 - `/` lists rooms by their latest message, newest first, with a form that
   opens any room by name. `/rooms/{name}` is the room: messages oldest first,
-  and a form to post. A room exists once someone posts in it.
+  a link to the session behind it, and a form to post. A room exists once
+  someone posts in it.
 - Humans post as the name in the form, remembered in the `garage-as` cookie.
   There is no login, so the name is only a label, as with `garage chat -as`.
   The form is `hx-boost`ed: it posts, follows the redirect and swaps the page,
@@ -52,6 +61,9 @@ templates/
   index.html     the one page shell: head, CSS, htmx, nav, {{block "main" .}}
   rooms.html     a page: defines "main" for /
   room.html      a page: defines "main" for /rooms/{name}
+  agents.html    a page: defines "main" for /agents
+  agent.html     a page: defines "main" for /agents/{name}
+  session.html   a page: defines "main" for /agents/{name}/sessions/{id}
   message.html   a partial: {{define "message"}}, one per file; also every
                  event on a room's stream
 static/
