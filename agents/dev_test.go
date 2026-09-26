@@ -210,3 +210,18 @@ func lastToolResult(req model.ModelRequest) string {
 	}
 	return ""
 }
+
+// A model can end its turn thinking out loud and saying nothing; the room must
+// still hear that dev stopped.
+func TestDevSaysSoWhenItsTurnEndsWithoutAnAnswer(t *testing.T) {
+	ws, _, _ := newWorkspace(t, "demo")
+	chat := newChat(t)
+	m := &testutils.ScriptedModel{Replies: []model.Message{testutils.AssistantText("")}}
+	chat.Join("dev", agents.Dev(agents.DevConfig{Chat: chat, Model: m, ModelID: "x", Store: newStore(t), Workspaces: []*workspace.Workspace{ws}}))
+
+	ask := post(t, chat, "task", "mike", "@dev deploy it")
+
+	if reply := replyFrom(t, chat, "task", "dev", ask.ID); !strings.Contains(reply.Text, "without an answer") {
+		t.Errorf("dev said %q, want it to say it stopped without an answer", reply.Text)
+	}
+}

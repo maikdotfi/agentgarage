@@ -47,9 +47,10 @@ noun; there is no other name for it anywhere in the code.
   refuses rather than waits on its lock files. Commands in a sandbox don't
   take it; an agent's own git is its business.
 - For reviews: `PullRequest(url)` is `gh pr view`, `Checkout(id, pr)` is a
-  worktree detached at the PR's head (its `remote.origin.pushurl` is set to
-  something unpushable through `GIT_CONFIG_*`, so pushes fail), and
-  `Comment(url, body)` is `gh pr comment`.
+  worktree detached at the PR's head. Its own `config.worktree` sets
+  `remote.origin.pushurl` to something unpushable, so pushes to origin fail,
+  while repos its commands make (a test suite's) still push. `Comment(url,
+  body)` is `gh pr comment`.
 - git over HTTPS gets `GH_TOKEN` through a credential helper set by
   `GIT_CONFIG_*` env vars, never a command line or a file.
 - Friction for metaharness: `agent.Command` has no env, so the library's

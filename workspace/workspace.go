@@ -177,9 +177,16 @@ func (ws *Workspace) Checkout(ctx context.Context, id string, pr PullRequest) (*
 	if _, err := ws.run(ctx, ws.repo, "git", "fetch", "-q", "origin"); err != nil {
 		return nil, err
 	}
-	t := &Task{ws: ws, id: id, branch: pr.Head, dir: filepath.Join(ws.cfg.Root, ws.cfg.Name, "tasks", id),
-		env: environ(ws.cfg, "remote.origin.pushurl", "read-only://checkouts-do-not-push")}
+	t := &Task{ws: ws, id: id, branch: pr.Head, dir: filepath.Join(ws.cfg.Root, ws.cfg.Name, "tasks", id), env: ws.env}
 	if _, err := ws.run(ctx, ws.repo, "git", "worktree", "add", "-q", "--detach", t.dir, pr.HeadSHA); err != nil {
+		return nil, err
+	}
+	// The push block lives in this worktree's own config, not the environment,
+	// so repos its commands make for themselves (a test suite's) still push.
+	if _, err := ws.run(ctx, ws.repo, "git", "config", "extensions.worktreeConfig", "true"); err != nil {
+		return nil, err
+	}
+	if _, err := ws.run(ctx, t.dir, "git", "config", "--worktree", "remote.origin.pushurl", "read-only://checkouts-do-not-push"); err != nil {
 		return nil, err
 	}
 	if _, err := ws.run(ctx, t.dir, ws.cfg.Mise, "install"); err != nil {
@@ -273,10 +280,10 @@ func (ws *Workspace) redact(s string) string {
 }
 
 // environ is everything a workspace's commands see: enough of the host to run
-// tools, the shared tools and caches, the commit identity, the credentials and
-// any git config given as key, value pairs. Nothing else of the garage's
+// tools, the shared tools and caches, the commit identity and the credentials.
+// Nothing else of the garage's
 // environment, such as its bucket token, gets through.
-func environ(cfg Config, gitConfig ...string) []string {
+func environ(cfg Config) []string {
 	root := filepath.Join(cfg.Root, cfg.Name)
 	cache := filepath.Join(root, "cache")
 	var env []string
@@ -304,13 +311,8 @@ func environ(cfg Config, gitConfig ...string) []string {
 	if _, ok := cfg.Env["GH_TOKEN"]; ok {
 		// git over HTTPS reads the token from the environment, never from a
 		// command line or a file.
-		gitConfig = append(gitConfig, "credential.helper", `!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f`)
-	}
-	if n := len(gitConfig) / 2; n > 0 {
-		env = append(env, fmt.Sprintf("GIT_CONFIG_COUNT=%d", n))
-		for i := range n {
-			env = append(env, fmt.Sprintf("GIT_CONFIG_KEY_%d=%s", i, gitConfig[2*i]), fmt.Sprintf("GIT_CONFIG_VALUE_%d=%s", i, gitConfig[2*i+1]))
-		}
+		env = append(env, "GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=credential.helper",
+			`GIT_CONFIG_VALUE_0=!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f`)
 	}
 	for k, v := range cfg.Env {
 		env = append(env, k+"="+v)

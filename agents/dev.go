@@ -135,9 +135,11 @@ func (d *dev) wake(ctx context.Context, m chatroom.Message) {
 			for _, p := range model.TextParts(ev.Message) {
 				parts = append(parts, p.Text)
 			}
-			if reply := strings.TrimSpace(strings.Join(parts, "\n")); reply != "" {
-				d.say(ctx, m.Room, reply)
+			reply := strings.TrimSpace(strings.Join(parts, "\n"))
+			if reply == "" {
+				reply = "I stopped without an answer: my last turn had no text. Ask me where I got to."
 			}
+			d.say(ctx, m.Room, reply)
 		case agent.EventError:
 			d.say(ctx, m.Room, "I stopped on an error: "+ev.Err.Error())
 		}

@@ -102,6 +102,24 @@ func TestACheckoutCannotPush(t *testing.T) {
 	}
 }
 
+// A checkout's push block is for the workspace's origin only: a test suite run
+// in it, like the garage's own before a deploy, still pushes to repos it made.
+func TestACheckoutCanPushToARepoOfItsOwn(t *testing.T) {
+	ctx := context.Background()
+	ws, _, url, _, _ := openPR(t)
+	pr, _ := ws.PullRequest(ctx, url)
+	review, err := ws.Checkout(ctx, "review", pr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res := sh(t, review.Sandbox(), `d=$(mktemp -d) && git init -q --bare "$d/o.git" && git clone -q "$d/o.git" "$d/c" 2>/dev/null &&
+		cd "$d/c" && git commit -q --allow-empty -m mine && git push -q origin HEAD:refs/heads/main`)
+	if res.ExitCode != 0 {
+		t.Errorf("pushing to a repo of its own from a checkout failed: %s%s", res.Stdout, res.Stderr)
+	}
+}
+
 func TestCheckoutInstallsTheRepoStack(t *testing.T) {
 	ctx := context.Background()
 	ws, _, url, _, _ := openPR(t)
