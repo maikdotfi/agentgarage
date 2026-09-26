@@ -26,6 +26,7 @@ the room it was mentioned in.
   last message read. After a restart, a mention in the room resumes the task:
   `workspace.Resume` finds the worktree, the session is loaded and bound to
   it. If either is gone, dev says so and starts a new task.
+  `agents.RoomSessions` is that join read back, for the observability pages.
 
 ## grug
 

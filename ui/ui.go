@@ -30,20 +30,22 @@ var (
 )
 
 // pages are the files that define "main"; every other template is a partial.
-var pages = []string{"rooms.html", "room.html"}
+var pages = []string{"rooms.html", "room.html", "agents.html", "agent.html", "session.html"}
 
 // asCookie remembers who a browser posts as. There is no login.
 const asCookie = "garage-as"
 
 type server struct {
-	chat  *chatroom.Service
-	pages map[string]*template.Template
+	chat   *chatroom.Service
+	pages  map[string]*template.Template
+	agents []Agent
 }
 
-// New is the UI for chat. It parses every template now, so a broken one is an
-// error here and never in a request.
-func New(chat *chatroom.Service) (http.Handler, error) {
-	s := &server{chat: chat, pages: map[string]*template.Template{}}
+// New is the UI for chat, plus a read-only view of each agent's own database.
+// It parses every template now, so a broken one is an error here and never in
+// a request.
+func New(chat *chatroom.Service, agents ...Agent) (http.Handler, error) {
+	s := &server{chat: chat, agents: agents, pages: map[string]*template.Template{}}
 	shell, err := template.New("index.html").Funcs(funcs).ParseFS(templates, "templates/index.html")
 	if err != nil {
 		return nil, fmt.Errorf("ui: %w", err)
@@ -76,6 +78,9 @@ func New(chat *chatroom.Service) (http.Handler, error) {
 	mux.HandleFunc("GET /rooms/{room}", s.room)
 	mux.HandleFunc("GET /rooms/{room}/events", s.events)
 	mux.HandleFunc("POST /rooms/{room}/messages", s.post)
+	mux.HandleFunc("GET /agents", s.agentsPage)
+	mux.HandleFunc("GET /agents/{name}", s.agentPage)
+	mux.HandleFunc("GET /agents/{name}/sessions/{id}", s.sessionPage)
 	return mux, nil
 }
 
@@ -99,8 +104,12 @@ type roomData struct {
 	Room     string
 	As       string
 	Messages []chatroom.Message
-	After    int64 // the last message shown
+	After    int64       // the last message shown
+	Session  sessionLink // the session behind this room, when there is one
 }
+
+// sessionLink is who worked a room, and in which session.
+type sessionLink struct{ Agent, ID string }
 
 func (s *server) rooms(w http.ResponseWriter, r *http.Request) {
 	rooms, err := s.chat.Rooms(r.Context())
@@ -130,7 +139,26 @@ func (s *server) room(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(asCookie); err == nil {
 		d.As, _ = url.QueryUnescape(c.Value)
 	}
+	d.Session = s.sessionBehind(r, d.Room)
 	s.render(w, http.StatusOK, s.pages["room.html"], "index.html", d)
+}
+
+// sessionBehind is the agent and session id working for room, or empty ones
+// if no agent's database joins the room to a session.
+func (s *server) sessionBehind(r *http.Request, room string) sessionLink {
+	for _, a := range s.agents {
+		if a.Store == nil {
+			continue
+		}
+		id := roomSession(r.Context(), a.Store, room)
+		if id == "" {
+			continue
+		}
+		if sess, err := a.Store.Load(r.Context(), id); err == nil {
+			return sessionLink{Agent: a.Name, ID: sess.ID}
+		}
+	}
+	return sessionLink{}
 }
 
 // events streams the room's messages after ?after= as Server-Sent Events,

@@ -1,6 +1,9 @@
 {{define "title"}}{{.Room}} · garage{{end}}
 {{define "crumb"}}<span class="sep">/</span><span class="here">{{.Room}}</span>{{end}}
 {{define "main"}}
+{{if .Session.Agent}}
+<p class="empty">This room is <a href="/agents/{{.Session.Agent}}/sessions/{{.Session.ID}}">{{.Session.Agent}}'s session {{.Session.ID}}</a>.</p>
+{{end}}
 <div class="log">
   <ol class="messages" data-events="{{roomURL .Room}}/events?after={{.After}}">{{range .Messages}}{{template "message" .}}{{end}}</ol>
 </div>
