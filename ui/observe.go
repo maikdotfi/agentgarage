@@ -2,11 +2,10 @@ package ui
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
-	"strings"
 	"time"
 
+	"github.com/maikdotfi/agentgarage/agents"
 	"github.com/maikdotfi/agentgarage/metaharness/agent"
 )
 
@@ -128,39 +127,20 @@ func (s *server) agent(name string) (Agent, bool) {
 	return Agent{}, false
 }
 
-// roomsKVPrefix is dev's (agents.RoomsKVPrefix), spelled here so ui does not
-// import agents. The prefix is dev's join of room to session.
-const roomsKVPrefix = "dev/rooms/"
-
 // allSessions is the limit that means every session: ListSessions(0) returns
 // none, so the pages ask for all of them.
 const allSessions = 1000000
 
+// roomSessions maps each room to the session behind it, as dev keeps that
+// join in its own database; agents.RoomSessions is the one copy of it. Every
+// agent's store is scanned, not just dev's: the pages don't know which agent
+// keeps it.
 func roomSessions(ctx context.Context, store AgentStore) (map[string]string, error) {
-	entries, err := store.List(ctx, roomsKVPrefix)
-	if err != nil {
-		return nil, err
-	}
-	rooms := map[string]string{}
-	for _, e := range entries {
-		var rec struct{ Task string }
-		if err := json.Unmarshal(e.Value, &rec); err != nil {
-			continue // one unreadable room doesn't hide the rest
-		}
-		rooms[strings.TrimPrefix(e.Key, roomsKVPrefix)] = rec.Task
-	}
-	return rooms, nil
+	return agents.RoomSessions(ctx, store)
 }
 
 // roomSession is the session behind one room, or "" when there is none.
 func roomSession(ctx context.Context, store AgentStore, room string) string {
-	raw, found, err := store.Get(ctx, roomsKVPrefix+room)
-	if err != nil || !found {
-		return ""
-	}
-	var rec struct{ Task string }
-	if err := json.Unmarshal(raw, &rec); err != nil {
-		return ""
-	}
-	return rec.Task
+	rooms, _ := roomSessions(ctx, store)
+	return rooms[room]
 }

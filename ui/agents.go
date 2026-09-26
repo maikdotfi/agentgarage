@@ -15,9 +15,9 @@ type AgentStore interface {
 	agentdb.KV
 }
 
-// Agent is one agent as the pages see it. Mid-turn state is not the caller's
-// to give: the pages read it from the agent's own sessions, whose status
-// says whether a turn is still running.
+// Agent is one agent as the pages see it: who it is, the model serve logged
+// it as running, its own database read-only, and — when the caller tracks
+// turns — where it is working now (see Busy).
 type Agent struct {
 	Name  string
 	Model string
