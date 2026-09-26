@@ -99,8 +99,3 @@ Deploying by hand means copying a new binary and running `garage setup`
 again: it restarts `serve` only if something changed. Snapshots run daily
 (`garage backup`), and a host with no databases restores the latest ones when
 `serve` starts. So a rebuild is the same copies and the same command.
-
-## Kicking the tires
-
-This section was added by the dev agent from the garage chat UI, running on
-its own host.
