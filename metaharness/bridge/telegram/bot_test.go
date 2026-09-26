@@ -357,6 +357,10 @@ func (blockingModel) Generate(ctx context.Context, _ model.ModelRequest) (fantas
 	return fantasy.Message{}, fantasy.Usage{}, ctx.Err()
 }
 
+func (m blockingModel) Stream(ctx context.Context, req model.ModelRequest) (fantasy.StreamResponse, error) {
+	return model.Streamed(m.Generate(ctx, req))
+}
+
 func TestTurnsSerialized(t *testing.T) {
 	// If turns interleaved, both user messages would be appended before either
 	// assistant reply, giving a user,user,... transcript. Serialization forces

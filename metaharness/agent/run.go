@@ -78,20 +78,19 @@ func (a *Agent) Run(ctx context.Context, sess *Session) (<-chan Event, error) {
 				out <- Event{Type: EventDone, Message: last}
 				return
 
-			// OBS: this does not stream, there is also Stream method on fantasy.LanguageModel
 			default: // empty, or last was user/tool -> call the model
-				msg, usage, err := a.Model.Generate(ctx, model.ModelRequest{
+				msg, usage, err := a.call(ctx, model.ModelRequest{
 					Model:    sess.Model,
 					System:   system,
 					Messages: sess.Messages,
 					Tools:    a.toolDefs(),
 				})
+				addUsage(&sess.Usage, usage)
 				if err != nil {
 					a.fail(ctx, sess, out, err)
 					return
 				}
 				sess.Messages = append(sess.Messages, msg)
-				addUsage(&sess.Usage, usage)
 				out <- Event{Type: EventAssistant, Message: &sess.Messages[len(sess.Messages)-1]}
 				if err := a.Store.Save(ctx, sess); err != nil {
 					a.fail(ctx, sess, out, err)
@@ -102,6 +101,16 @@ func (a *Agent) Run(ctx context.Context, sess *Session) (<-chan Event, error) {
 	}()
 
 	return out, nil
+}
+
+// call streams one answer from the model, so a long one keeps its connection
+// alive, and collects it into a message.
+func (a *Agent) call(ctx context.Context, req model.ModelRequest) (fantasy.Message, fantasy.Usage, error) {
+	parts, err := a.Model.Stream(ctx, req)
+	if err != nil {
+		return fantasy.Message{}, fantasy.Usage{}, err
+	}
+	return model.Collect(parts)
 }
 
 // dispatch runs one tool against the sandbox and wraps the result as a tool message.

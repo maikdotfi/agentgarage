@@ -250,3 +250,29 @@ func runToolCalls(t *testing.T, tool testTool, calls []model.ToolCall) []model.T
 	}
 	return results
 }
+
+// Streaming is how every agent turn calls the model, with a large output budget.
+func TestStreamWithoutSession(t *testing.T) {
+	tm := newTestModel(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	parts, err := tm.client.Stream(ctx, model.ModelRequest{
+		Model:    tm.id,
+		Messages: []model.Message{model.NewUserMessage("Reply with exactly: pong")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, usage, err := model.Collect(parts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dump(t, msg)
+	if !strings.Contains(strings.ToLower(messageText(&msg)), "pong") {
+		t.Fatalf("answer = %q, want pong", messageText(&msg))
+	}
+	if usage.OutputTokens == 0 {
+		t.Errorf("usage = %+v, want output tokens counted", usage)
+	}
+}

@@ -162,6 +162,30 @@ func (m *FantasyModel) Generate(ctx context.Context, req ModelRequest) (fantasy.
 		return fantasy.Message{}, fantasy.Usage{}, err
 	}
 
+	call := m.call(req)
+	call.MaxOutputTokens = outputBudget(req.MaxOutputTokens, m.minOutputTokens)
+
+	resp, err := lm.Generate(ctx, call)
+	if err != nil {
+		return fantasy.Message{}, fantasy.Usage{}, err
+	}
+	return assistantMessage(resp), resp.Usage, nil
+}
+
+// Stream asks for at least streamMinOutputTokens: streaming keeps a long
+// answer's connection alive, so it can leave the model room to think.
+func (m *FantasyModel) Stream(ctx context.Context, req ModelRequest) (fantasy.StreamResponse, error) {
+	lm, err := m.resolve(ctx, req.Model)
+	if err != nil {
+		return nil, err
+	}
+	call := m.call(req)
+	call.MaxOutputTokens = outputBudget(req.MaxOutputTokens, max(m.minOutputTokens, streamMinOutputTokens))
+	return lm.Stream(ctx, call)
+}
+
+// call is req as fantasy asks for it, without an output budget.
+func (m *FantasyModel) call(req ModelRequest) fantasy.Call {
 	prompt := make([]fantasy.Message, 0, len(req.Messages)+1)
 	if req.System != "" {
 		prompt = append(prompt, fantasy.NewSystemMessage(req.System))
@@ -175,13 +199,7 @@ func (m *FantasyModel) Generate(ctx context.Context, req ModelRequest) (fantasy.
 	if m.thinkingOpts != nil {
 		call.ProviderOptions = m.thinkingOpts
 	}
-	call.MaxOutputTokens = outputBudget(req.MaxOutputTokens, m.minOutputTokens)
-
-	resp, err := lm.Generate(ctx, call)
-	if err != nil {
-		return fantasy.Message{}, fantasy.Usage{}, err
-	}
-	return assistantMessage(resp), resp.Usage, nil
+	return call
 }
 
 // outputBudget is the ceiling one call puts on its answer, reasoning included.

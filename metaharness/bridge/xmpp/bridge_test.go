@@ -371,6 +371,10 @@ func (m *gatedModel) Generate(_ context.Context, req model.ModelRequest) (fantas
 	return asstText("done"), fantasy.Usage{}, nil
 }
 
+func (m *gatedModel) Stream(ctx context.Context, req model.ModelRequest) (fantasy.StreamResponse, error) {
+	return model.Streamed(m.Generate(ctx, req))
+}
+
 type fakeTimer struct {
 	waits chan time.Duration
 	fires chan time.Time

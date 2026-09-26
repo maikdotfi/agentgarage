@@ -30,6 +30,10 @@ func (m slowModel) Generate(ctx context.Context, _ model.ModelRequest) (fantasy.
 	}
 }
 
+func (m slowModel) Stream(ctx context.Context, req model.ModelRequest) (fantasy.StreamResponse, error) {
+	return model.Streamed(m.Generate(ctx, req))
+}
+
 func waitForFile(t *testing.T, path string) {
 	t.Helper()
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {

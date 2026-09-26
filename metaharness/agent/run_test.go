@@ -1,13 +1,16 @@
 package agent_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"testing"
 
 	"charm.land/fantasy"
 
 	"github.com/maikdotfi/agentgarage/metaharness/agent"
+	"github.com/maikdotfi/agentgarage/metaharness/model"
 	"github.com/maikdotfi/agentgarage/metaharness/testutils"
 )
 
@@ -79,5 +82,38 @@ func TestRunWritesHelloWorld(t *testing.T) {
 	}
 	if tools := mdl.Calls[0].Tools; len(tools) != 1 || tools[0].Name != "write_file" {
 		t.Fatalf("tool defs = %+v, want the write_file tool forwarded", tools)
+	}
+}
+
+// cutOffModel streams an answer that runs out of tokens while still thinking.
+type cutOffModel struct{ *testutils.ScriptedModel }
+
+func (cutOffModel) Stream(context.Context, model.ModelRequest) (fantasy.StreamResponse, error) {
+	return func(yield func(fantasy.StreamPart) bool) {
+		_ = yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeReasoningStart, ID: "0"}) &&
+			yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeReasoningDelta, ID: "0", Delta: "let me think about the design"}) &&
+			yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonLength})
+	}, nil
+}
+
+// A turn cut off mid-thought has no answer, so it fails rather than finishing
+// silently with nothing to say.
+func TestRunCutOffWhileThinkingFails(t *testing.T) {
+	a := agent.New(systemPrompt, agent.WithModel(cutOffModel{&testutils.ScriptedModel{}}), agent.WithStore(&testutils.MemStore{}))
+	sess := testutils.UserSession("t1", "fake-model", &testutils.FakeSandbox{SandboxName: "work"}, "Design it.")
+
+	events, err := a.Run(context.Background(), sess)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var last agent.Event
+	for ev := range events {
+		last = ev
+	}
+	if last.Type != agent.EventError || !errors.Is(last.Err, model.ErrOutputLimit) {
+		t.Fatalf("last event = %v %v, want an error with ErrOutputLimit", last.Type, last.Err)
+	}
+	if sess.Status != agent.StatusFailed {
+		t.Errorf("session status = %q, want %q", sess.Status, agent.StatusFailed)
 	}
 }

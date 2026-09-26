@@ -107,7 +107,7 @@ sequenceDiagram
     App->>Agent: Run(ctx, session)
 
     loop Until assistant returns without tool calls
-        Agent->>Model: Generate(system prompt, transcript, tool schemas)
+        Agent->>Model: Stream(system prompt, transcript, tool schemas)
         Model-->>Agent: assistant text and/or tool calls + usage
         Agent->>Store: Save(session)
         opt Assistant requested tools

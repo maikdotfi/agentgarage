@@ -304,6 +304,11 @@ doing work the library should do.
   facet, was rejected because it makes the application name a facet where
   `memory.SystemPrompt(store)` names none — but it is the fix if a third
   collision arrives.
+- **`model.ModelClient` has two methods for one completion.** `agent.Run`
+  streams, so a long answer keeps its connection alive, but `Generate` stays for
+  callers that want a whole answer. Every fake pays a line for it,
+  `return model.Streamed(m.Generate(ctx, req))`, which is the library's
+  adapter written out by each caller.
 - **`sandbox.WithImage` on a local manager does nothing.** One option vocabulary
   serving every backend is the acknowledged price of choosing a backend by name
   (`sandbox/registry.go:17`), but it is a price, and a caller reading the flag

@@ -31,6 +31,10 @@ func (m *ScriptedModel) Generate(_ context.Context, req model.ModelRequest) (fan
 	return msg, fantasy.Usage{InputTokens: 10, OutputTokens: 5, TotalTokens: 15}, nil
 }
 
+func (m *ScriptedModel) Stream(ctx context.Context, req model.ModelRequest) (fantasy.StreamResponse, error) {
+	return model.Streamed(m.Generate(ctx, req))
+}
+
 // ToolThenText is a fake ModelClient that asks for one tool call and then
 // finishes with text, deciding which from the transcript it is handed rather
 // than from a position in a script. That is what makes it usable by several
@@ -57,6 +61,10 @@ func (m *ToolThenText) Generate(_ context.Context, req model.ModelRequest) (fant
 	return fantasy.Message{Role: fantasy.MessageRoleAssistant, Content: []fantasy.MessagePart{
 		fantasy.ToolCallPart{ToolCallID: "call_1", ToolName: m.ToolName, Input: input},
 	}}, usage, nil
+}
+
+func (m *ToolThenText) Stream(ctx context.Context, req model.ModelRequest) (fantasy.StreamResponse, error) {
+	return model.Streamed(m.Generate(ctx, req))
 }
 
 // Calls reports how many times the model was asked to generate.
