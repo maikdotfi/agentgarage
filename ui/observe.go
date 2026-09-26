@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -26,20 +27,31 @@ type sessionRow struct {
 }
 
 // agentsPage renders /agents: every agent, its model, and who is mid-turn.
+// A store that cannot be read is an error, not a quiet zero: a page whose
+// job is truth must not render "0 sessions, idle" over a failed read.
 func (s *server) agentsPage(w http.ResponseWriter, r *http.Request) {
 	rows := make([]agentRow, 0, len(s.agents))
 	for _, a := range s.agents {
 		row := agentRow{Agent: a, Rooms: map[string]string{}}
 		if a.Store != nil {
-			row.Rooms, _ = roomSessions(r.Context(), a.Store)
-			row.Sessions, _ = a.Store.ListSessions(r.Context(), allSessions)
+			rooms, err := roomSessions(r.Context(), a.Store)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			row.Rooms = rooms
+			infos, err := a.Store.ListSessions(r.Context(), 0)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			row.Sessions = infos
 			for _, info := range row.Sessions {
 				row.Tokens += info.Usage.TotalTokens
-				if info.Status == agent.StatusActive {
-					row.Working = true
-				}
 			}
 		}
+		// Mid-turn comes from Busy, the live count serve keeps — not from a
+		// session's status, which a crash leaves `active` forever.
 		if a.Busy != nil {
 			if room, since := a.Busy.Working(); room != "" {
 				row.WorkingRoom, row.WorkingSince = room, since
@@ -50,14 +62,15 @@ func (s *server) agentsPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, http.StatusOK, s.pages["agents.html"], "index.html", rows)
 }
 
-// agentRow is one agent on /agents.
+// agentRow is one agent on /agents. Working state is live, from Busy: a
+// session's status is only ever as fresh as the last thing that wrote it, and
+// a crash leaves `active` behind — a status the page would trust forever.
 type agentRow struct {
 	Agent
 	Rooms        map[string]string // room -> session id
 	Sessions     []agent.SessionInfo
 	Tokens       int64     // every session's tokens together
-	Working      bool      // a session of this agent is mid-turn now
-	WorkingRoom  string    // where, when Busy says so
+	WorkingRoom  string    // where the current turn is, "" when idle
 	WorkingSince time.Time // and since when
 }
 
@@ -75,7 +88,11 @@ func (s *server) agentPage(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		rooms, _ := roomSessions(r.Context(), a.Store)
+		rooms, err := roomSessions(r.Context(), a.Store)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		bySession := map[string]string{}
 		for room, id := range rooms {
 			bySession[id] = room
@@ -103,10 +120,19 @@ func (s *server) sessionPage(w http.ResponseWriter, r *http.Request) {
 	}
 	sess, err := a.Store.Load(r.Context(), r.PathValue("id"))
 	if err != nil {
-		http.NotFound(w, r) // gone, or never was; either way there is no page
+		if errors.Is(err, agent.ErrNotFound) {
+			http.NotFound(w, r) // gone, or never was; either way there is no page
+			return
+		}
+		// A read that failed is not a page that is missing.
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	rooms, _ := roomSessions(r.Context(), a.Store)
+	rooms, err := roomSessions(r.Context(), a.Store)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	room := ""
 	for rm, id := range rooms {
 		if id == sess.ID {
@@ -126,10 +152,6 @@ func (s *server) agent(name string) (Agent, bool) {
 	}
 	return Agent{}, false
 }
-
-// allSessions is the limit that means every session: ListSessions(0) returns
-// none, so the pages ask for all of them.
-const allSessions = 1000000
 
 // roomSessions maps each room to the session behind it, as dev keeps that
 // join in its own database; agents.RoomSessions is the one copy of it. Every

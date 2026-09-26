@@ -11,7 +11,7 @@
       <td>{{range $room, $id := .Rooms}}<a href="{{roomURL $room}}">{{$room}}</a> {{end}}</td>
       <td>{{len .Sessions}} {{if eq (len .Sessions) 1}}session{{else}}sessions{{end}}</td>
       <td>{{.Tokens}} tokens</td>
-      <td class="time">{{if .WorkingRoom}}working in <a href="{{roomURL .WorkingRoom}}">{{.WorkingRoom}}</a> since {{when .WorkingSince}}{{else if .Working}}mid-turn{{else}}idle{{end}}</td>
+		<td class="time">{{if .WorkingRoom}}working in <a href="{{roomURL .WorkingRoom}}">{{.WorkingRoom}}</a> since {{when .WorkingSince}}{{else}}idle{{end}}</td>
     </tr>
   {{end}}
   </tbody>

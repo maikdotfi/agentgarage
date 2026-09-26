@@ -308,6 +308,14 @@ doing work the library should do.
   serving every backend is the acknowledged price of choosing a backend by name
   (`sandbox/registry.go:17`), but it is a price, and a caller reading the flag
   help cannot tell which options apply to the kind it chose.
+- **The message roles live only in `fantasy`.** `model` aliases the message type
+  (`model.Message = fantasy.Message`) but not its role constants, so the
+  garage's transcript pages switch on `fantasy.MessageRole*` and import
+  fantasy directly (`ui/transcript.go`), reaching around the one package whose
+  job is to be the garage-facing adapter. Exporting the three roles the
+  application-facing surface uses would drop the fantasy import from every
+  caller that renders a transcript; until then, `ui/STACK.md` carries the
+  dependency line.
 
 ---
 

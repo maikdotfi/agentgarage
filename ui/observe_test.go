@@ -19,14 +19,21 @@ import (
 // observe is the UI on an in-memory chatroom, with two agents wired to it
 // through in-memory turso stores holding the sessions the pages show.
 func observe(t *testing.T) (*chatroom.Service, http.Handler) {
+	return garageWith(t,
+		ui.Agent{Name: "dev", Model: "gpt:41", Store: agentStore(t, "dev")},
+		ui.Agent{Name: "grug", Model: "gpt:41", Store: agentStore(t, "grug")})
+}
+
+// garageWith is the UI on an in-memory chatroom, with the agents the caller
+// hands over.
+func garageWith(t *testing.T, agents ...ui.Agent) (*chatroom.Service, http.Handler) {
 	t.Helper()
 	chat, err := chatroom.Open(context.Background(), ":memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { chat.Close() })
-	h, err := ui.New(chat, ui.Agent{Name: "dev", Model: "gpt:41", Store: agentStore(t, "dev")},
-		ui.Agent{Name: "grug", Model: "gpt:41", Store: agentStore(t, "grug")})
+	h, err := ui.New(chat, agents...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,6 +135,12 @@ func TestASessionPageIsNotFoundForAnotherAgent(t *testing.T) {
 	_, h := observe(t)
 	if code, _ := get(t, h, "/agents/grug/sessions/obs-20260926-064157"); code != http.StatusNotFound {
 		t.Errorf("status %d, want 404", code)
+	}
+	if code, _ := get(t, h, "/agents/dev/sessions/never-was"); code != http.StatusNotFound {
+		t.Errorf("status %d, want 404 for a session that never was", code)
+	}
+	if code, _ := get(t, h, "/agents/nobody"); code != http.StatusNotFound {
+		t.Errorf("status %d, want 404 for an agent there is no page for", code)
 	}
 }
 

@@ -95,7 +95,7 @@ type taskRecord struct {
 	Seen      int64  `json:"seen"`
 }
 
-func roomKey(room string) string { return "dev/rooms/" + room }
+func roomKey(room string) string { return RoomsKVPrefix + room }
 
 func (d *dev) wake(ctx context.Context, m chatroom.Message) {
 	t, intro := d.task(ctx, m)

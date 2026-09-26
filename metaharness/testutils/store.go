@@ -55,13 +55,11 @@ func (s *MemStore) Load(ctx context.Context, id string) (*agent.Session, error) 
 	return stored.record.Session(), nil
 }
 
-// ListSessions returns the most recently saved sessions first.
+// ListSessions returns the most recently saved sessions first. A limit of 0
+// or less is every session.
 func (s *MemStore) ListSessions(ctx context.Context, limit int) ([]agent.SessionInfo, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
-	}
-	if limit <= 0 {
-		return []agent.SessionInfo{}, nil
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -83,7 +81,7 @@ func (s *MemStore) ListSessions(ctx context.Context, limit int) ([]agent.Session
 		}
 		return b.UpdatedAt.Compare(a.UpdatedAt) // most recent first
 	})
-	if len(infos) > limit {
+	if limit > 0 && len(infos) > limit {
 		infos = infos[:limit]
 	}
 	return infos, nil

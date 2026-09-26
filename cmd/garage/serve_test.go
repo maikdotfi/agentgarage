@@ -137,8 +137,21 @@ func (h *garageHost) start(t *testing.T) (<-chan error, context.CancelFunc) {
 	return nil, nil
 }
 
-// waitFor reads room over the socket until a message has text.
+// waitFor reads room over the socket until a message's text is exactly text.
 func (h *garageHost) waitFor(t *testing.T, room, text string) {
+	t.Helper()
+	h.waitForText(t, room, func(s string) bool { return s == text }, text)
+}
+
+// waitForPrefix reads room over the socket until a message starts with
+// prefix. For answers whose tail the test can't know: a model error, a
+// timestamp, a path.
+func (h *garageHost) waitForPrefix(t *testing.T, room, prefix string) {
+	t.Helper()
+	h.waitForText(t, room, func(s string) bool { return strings.HasPrefix(s, prefix) }, prefix)
+}
+
+func (h *garageHost) waitForText(t *testing.T, room string, match func(string) bool, what string) {
 	t.Helper()
 	c := socketClient(filepath.Join(h.home, socketFile))
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -147,13 +160,13 @@ func (h *garageHost) waitFor(t *testing.T, room, text string) {
 	for ctx.Err() == nil {
 		msgs, _ := c.read(ctx, room, last, "1s")
 		for _, m := range msgs {
-			if m.Text == text || strings.HasPrefix(m.Text, text) {
+			if match(m.Text) {
 				return
 			}
 			last = m.ID
 		}
 	}
-	t.Fatalf("%q never appeared in %s", text, room)
+	t.Fatalf("%q never appeared in %s", what, room)
 }
 
 func TestServeTakesMailFromTheLaptop(t *testing.T) {
@@ -214,7 +227,7 @@ func TestServeServesTheAgentsPages(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("dev never called the model")
 	}
-	h.waitFor(t, "obs", "I stopped on an error: ")
+	h.waitForPrefix(t, "obs", "I stopped on an error: ")
 
 	agents := page("/agents")
 	if !strings.Contains(agents, `href="/agents/dev"`) || !strings.Contains(agents, "fake-model") {

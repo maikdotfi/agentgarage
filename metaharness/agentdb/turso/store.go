@@ -288,18 +288,16 @@ func (s *Store) loadMessages(ctx context.Context, id string) ([]fantasy.Message,
 	return messages, nil
 }
 
-// ListSessions returns the most recently saved sessions first.
+// ListSessions returns the most recently saved sessions first. A limit of 0
+// or less is every session.
 func (s *Store) ListSessions(ctx context.Context, limit int) ([]agent.SessionInfo, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if limit <= 0 {
-		return []agent.SessionInfo{}, nil
-	}
 	// The message count is a correlated subquery rather than a column: with a
 	// message table the count has one source of truth, and one indexed count per
 	// listed row is not worth keeping a second copy of it in step.
-	rows, err := s.db.QueryContext(ctx, `
+	query := `
 		SELECT
 			id,
 			model,
@@ -309,14 +307,22 @@ func (s *Store) ListSessions(ctx context.Context, limit int) ([]agent.SessionInf
 			reasoning_tokens, cache_creation_tokens, cache_read_tokens,
 			updated_at
 		FROM agent_sessions
-		ORDER BY updated_at DESC, id ASC
-		LIMIT ?`, limit)
+		ORDER BY updated_at DESC, id ASC`
+	args := []any{}
+	if limit > 0 {
+		query += " LIMIT ?"
+		args = append(args, limit)
+	}
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("turso: list sessions: %w", err)
 	}
 	defer rows.Close()
 
-	infos := make([]agent.SessionInfo, 0, limit)
+	infos := []agent.SessionInfo{}
+	if limit > 0 {
+		infos = make([]agent.SessionInfo, 0, limit)
+	}
 	for rows.Next() {
 		var (
 			info      agent.SessionInfo

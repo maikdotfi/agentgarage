@@ -231,6 +231,16 @@ func RunSessionStoreSuite(t *testing.T, newStore SessionStoreFactory) {
 			!reflect.DeepEqual(got[0].Usage, want.Usage) || got[0].UpdatedAt.IsZero() {
 			t.Fatalf("ListSessions()[0] = %#v, want metadata for %#v", got[0], want)
 		}
+
+		// Zero is every session, not none: a caller with no reason to bound
+		// the list shouldn't invent a bound.
+		all, err := lister.ListSessions(context.Background(), 0)
+		if err != nil {
+			t.Fatalf("ListSessions(ctx, 0) error = %v", err)
+		}
+		if len(all) != 2 {
+			t.Fatalf("ListSessions(ctx, 0) returned %d items, want every session", len(all))
+		}
 	})
 }
 

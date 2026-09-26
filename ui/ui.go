@@ -144,18 +144,16 @@ func (s *server) room(w http.ResponseWriter, r *http.Request) {
 }
 
 // sessionBehind is the agent and session id working for room, or empty ones
-// if no agent's database joins the room to a session.
+// if no agent's database joins the room to a session. The link is a link:
+// the page it points at says whether the transcript is readable, so this
+// doesn't load it to find out.
 func (s *server) sessionBehind(r *http.Request, room string) sessionLink {
 	for _, a := range s.agents {
 		if a.Store == nil {
 			continue
 		}
-		id := roomSession(r.Context(), a.Store, room)
-		if id == "" {
-			continue
-		}
-		if sess, err := a.Store.Load(r.Context(), id); err == nil {
-			return sessionLink{Agent: a.Name, ID: sess.ID}
+		if id := roomSession(r.Context(), a.Store, room); id != "" {
+			return sessionLink{Agent: a.Name, ID: id}
 		}
 	}
 	return sessionLink{}
